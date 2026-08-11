@@ -1,0 +1,139 @@
+{
+  "input_file": "C:\\GitHub\\edge-ai-smart-bank-transfers\\data\\raw\\dataset_master_5000.jsonl",
+  "output_file": "C:\\GitHub\\edge-ai-smart-bank-transfers\\data\\cleaned\\dataset_master_cleaned.jsonl",
+  "total_records": 5000,
+  "json_errors": [],
+  "validation_errors": [],
+  "activity_distribution": {
+    "GENERATION": 2000,
+    "COMPLETION": 1500,
+    "NORMALIZATION": 1500
+  },
+  "generation_with_calendar": 1000,
+  "generation_without_calendar": 1000,
+  "category_count": 40,
+  "category_distribution": {
+    "RENT": 125,
+    "UTILITIES": 125,
+    "ELECTRICITY": 125,
+    "GAS": 125,
+    "WATER": 125,
+    "INTERNET": 125,
+    "PHONE": 125,
+    "UNIVERSITY": 125,
+    "EDUCATION": 125,
+    "REFUND": 125,
+    "LOAN": 125,
+    "INSURANCE": 125,
+    "CONDOMINIUM": 125,
+    "SPORTS_ACTIVITY": 125,
+    "HEALTHCARE": 125,
+    "MEDICAL_EXPENSE": 125,
+    "SUBSCRIPTION": 125,
+    "TRANSPORT": 125,
+    "TRAVEL": 125,
+    "ACCOMMODATION": 125,
+    "RESTAURANT": 125,
+    "GIFT": 125,
+    "FAMILY_SUPPORT": 125,
+    "PROFESSIONAL_SERVICE": 125,
+    "CONSULTING": 125,
+    "MAINTENANCE": 125,
+    "REPAIR": 125,
+    "PURCHASE": 125,
+    "EVENT": 125,
+    "COURSE": 125,
+    "MEMBERSHIP": 125,
+    "CHILDCARE": 125,
+    "TAX": 125,
+    "ADMINISTRATIVE_FEE": 125,
+    "CHARITY": 125,
+    "GROCERIES": 125,
+    "PET_CARE": 125,
+    "SOFTWARE": 125,
+    "HOME_SERVICE": 125,
+    "VEHICLE_SERVICE": 125
+  },
+  "currency_distribution": {
+    "EUR": 4825,
+    "USD": 91,
+    "GBP": 84
+  },
+  "amount_statistics": {
+    "min": 5.0,
+    "max": 4980.47,
+    "average": 683.97
+  },
+  "exact_duplicate_count": 0,
+  "exact_duplicates": [],
+  "near_duplicate_threshold": 0.93,
+  "near_duplicate_candidate_count": 13,
+  "near_duplicate_candidates": [
+    {
+      "id_1": "EX2020",
+      "id_2": "EX2028",
+      "similarity": 0.9496
+    },
+    {
+      "id_1": "EX2393",
+      "id_2": "EX2399",
+      "similarity": 0.9308
+    },
+    {
+      "id_1": "EX2658",
+      "id_2": "EX2667",
+      "similarity": 0.9432
+    },
+    {
+      "id_1": "EX2766",
+      "id_2": "EX2781",
+      "similarity": 0.9302
+    },
+    {
+      "id_1": "EX2774",
+      "id_2": "EX2791",
+      "similarity": 0.9439
+    },
+    {
+      "id_1": "EX2875",
+      "id_2": "EX2890",
+      "similarity": 0.9618
+    },
+    {
+      "id_1": "EX3157",
+      "id_2": "EX3165",
+      "similarity": 0.9393
+    },
+    {
+      "id_1": "EX3224",
+      "id_2": "EX3225",
+      "similarity": 0.9372
+    },
+    {
+      "id_1": "EX3289",
+      "id_2": "EX3315",
+      "similarity": 0.952
+    },
+    {
+      "id_1": "EX3322",
+      "id_2": "EX3326",
+      "similarity": 0.9327
+    },
+    {
+      "id_1": "EX3401",
+      "id_2": "EX3418",
+      "similarity": 0.9423
+    },
+    {
+      "id_1": "EX4451",
+      "id_2": "EX4467",
+      "similarity": 0.933
+    },
+    {
+      "id_1": "EX4621",
+      "id_2": "EX4641",
+      "similarity": 0.933
+    }
+  ],
+  "validation_passed": true
+}
