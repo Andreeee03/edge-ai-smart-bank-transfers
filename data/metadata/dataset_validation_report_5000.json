@@ -1,0 +1,258 @@
+{
+  "total_records": 5000,
+  "non_empty_jsonl_lines": 5000,
+  "activity_distribution": {
+    "GENERATION": 2000,
+    "COMPLETION": 1500,
+    "NORMALIZATION": 1500
+  },
+  "generation_with_calendar": 1000,
+  "generation_without_calendar": 1000,
+  "unique_ids": 5000,
+  "beneficiary_null_count": 0,
+  "amount_null_count": 0,
+  "currency_null_count": 0,
+  "exact_duplicates": 0,
+  "invalid_records": 0,
+  "validation_passed": true,
+  "mandatory_checks": {
+    "exactly_5000_non_empty_jsonl_lines": true,
+    "every_line_valid_json": true,
+    "exact_required_fields": true,
+    "sequential_unique_ids_EX0001_EX5000": true,
+    "activity_distribution_exact": true,
+    "generation_calendar_1000_1000": true,
+    "completion_normalization_calendar_null": true,
+    "generation_input_null": true,
+    "completion_normalization_input_nonempty": true,
+    "beneficiary_nonempty": true,
+    "amount_positive_numeric": true,
+    "currency_nonnull_valid": true,
+    "expected_output_two_distinct_nonempty": true,
+    "expected_outputs_meaningfully_different": true,
+    "language_en": true,
+    "split_null": true,
+    "calendar_exact_schema": true,
+    "calendar_dates_valid": true,
+    "calendar_reference_temporal_coherence": true,
+    "at_least_25_categories": true,
+    "no_category_over_10_percent": true,
+    "no_exact_duplicate_records": true,
+    "no_duplicate_expected_pairs_in_activity_category": true,
+    "no_obvious_structural_near_duplicates": true,
+    "completion_inputs_genuinely_incomplete": true,
+    "completion_outputs_complete_input": true,
+    "normalization_preserves_input_meaning": true,
+    "normalization_changes_noisy_input": true,
+    "calendar_context_relevant": true,
+    "semantic_category_consistency": true
+  },
+  "category_counts": {
+    "ACCOMMODATION": 125,
+    "ADMINISTRATIVE_FEE": 125,
+    "CHARITY": 125,
+    "CHILDCARE": 125,
+    "CONDOMINIUM": 125,
+    "CONSULTING": 125,
+    "COURSE": 125,
+    "EDUCATION": 125,
+    "ELECTRICITY": 125,
+    "EVENT": 125,
+    "FAMILY_SUPPORT": 125,
+    "GAS": 125,
+    "GIFT": 125,
+    "GROCERIES": 125,
+    "HEALTHCARE": 125,
+    "HOME_SERVICE": 125,
+    "INSURANCE": 125,
+    "INTERNET": 125,
+    "LOAN": 125,
+    "MAINTENANCE": 125,
+    "MEDICAL_EXPENSE": 125,
+    "MEMBERSHIP": 125,
+    "PET_CARE": 125,
+    "PHONE": 125,
+    "PROFESSIONAL_SERVICE": 125,
+    "PURCHASE": 125,
+    "REFUND": 125,
+    "RENT": 125,
+    "REPAIR": 125,
+    "RESTAURANT": 125,
+    "SOFTWARE": 125,
+    "SPORTS_ACTIVITY": 125,
+    "SUBSCRIPTION": 125,
+    "TAX": 125,
+    "TRANSPORT": 125,
+    "TRAVEL": 125,
+    "UNIVERSITY": 125,
+    "UTILITIES": 125,
+    "VEHICLE_SERVICE": 125,
+    "WATER": 125
+  },
+  "distinct_categories": 40,
+  "beneficiary_diversity": {
+    "distinct_beneficiaries": 5000,
+    "unique_beneficiary_ratio": 1.0,
+    "max_occurrences_single_beneficiary": 1,
+    "approx_distinct_person_like": 874,
+    "approx_distinct_organization_like": 4126
+  },
+  "currency_distribution": {
+    "EUR": 4825,
+    "USD": 91,
+    "GBP": 84
+  },
+  "amount_statistics": {
+    "min": 5.0,
+    "max": 4980.47,
+    "mean": 683.97,
+    "median": 408.31,
+    "p10": 65.0,
+    "p90": 1650.0
+  },
+  "calendar_event_statistics": {
+    "records_with_calendar": 1000,
+    "distinct_event_titles": 199,
+    "distinct_event_categories": 18,
+    "event_category_counts": {
+      "Accommodation": 50,
+      "Charity": 50,
+      "Childcare": 50,
+      "Consulting": 50,
+      "Course": 50,
+      "Dining": 50,
+      "Education": 100,
+      "Event": 50,
+      "Health": 100,
+      "Insurance": 50,
+      "Maintenance": 50,
+      "Membership": 50,
+      "Pet care": 50,
+      "Professional": 50,
+      "Repair": 50,
+      "Sport": 50,
+      "Travel": 50,
+      "Vehicle service": 50
+    },
+    "event_date_min": "2025-01-05",
+    "event_date_max": "2027-10-01"
+  },
+  "input_text_length_words": {
+    "count": 3000,
+    "min": 1,
+    "max": 12,
+    "mean": 5.61,
+    "median": 5.0
+  },
+  "expected_output_length_words": {
+    "count": 10000,
+    "min": 3,
+    "max": 11,
+    "mean": 6.29,
+    "median": 6.0,
+    "over_10_words": 5
+  },
+  "repeated_output_patterns": {
+    "most_common_first_two_tokens": [
+      {
+        "pattern": "second installment",
+        "count": 188
+      },
+      {
+        "pattern": "first installment",
+        "count": 166
+      },
+      {
+        "pattern": "final installment",
+        "count": 166
+      },
+      {
+        "pattern": "december 2025",
+        "count": 98
+      },
+      {
+        "pattern": "march 2025",
+        "count": 91
+      },
+      {
+        "pattern": "july 2027",
+        "count": 87
+      },
+      {
+        "pattern": "april 2027",
+        "count": 77
+      },
+      {
+        "pattern": "november 2026",
+        "count": 76
+      },
+      {
+        "pattern": "q4 2025",
+        "count": 72
+      },
+      {
+        "pattern": "august 2026",
+        "count": 70
+      },
+      {
+        "pattern": "q3 2026",
+        "count": 55
+      },
+      {
+        "pattern": "q2 2027",
+        "count": 55
+      },
+      {
+        "pattern": "pet care",
+        "count": 40
+      },
+      {
+        "pattern": "annual renewal",
+        "count": 25
+      },
+      {
+        "pattern": "january 2025",
+        "count": 24
+      },
+      {
+        "pattern": "january 2027",
+        "count": 24
+      },
+      {
+        "pattern": "family contribution",
+        "count": 24
+      },
+      {
+        "pattern": "utility services",
+        "count": 23
+      },
+      {
+        "pattern": "broadband bill",
+        "count": 23
+      },
+      {
+        "pattern": "mobile service",
+        "count": 23
+      }
+    ],
+    "max_first_two_token_pattern_count": 188
+  },
+  "duplicate_and_near_duplicate_analysis": {
+    "duplicate_ids": 0,
+    "exact_duplicate_records": 0,
+    "identical_expected_output_pairs_same_activity_category": 0,
+    "structural_exact_duplicate_pairs": 0,
+    "obvious_structural_near_duplicate_pairs": 0,
+    "near_duplicate_method": "Within activity_type + operation_category; beneficiary/reference period/date/amount normalized; flagged only when token Jaccard >= 0.94 and SequenceMatcher ratio >= 0.95."
+  },
+  "qualitative_validation": {
+    "completion_quality_failures": 0,
+    "normalization_semantic_preservation_failures": 0,
+    "calendar_relevance_failures": 0,
+    "calendar_temporal_failures": 0,
+    "semantic_category_consistency_failures": 0,
+    "english_only_by_controlled_generation": true
+  },
+  "records_repaired_or_regenerated_during_validation": 5,
+  "validation_issue_counts": {}
+}
