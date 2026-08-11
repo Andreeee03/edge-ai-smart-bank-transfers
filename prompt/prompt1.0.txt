@@ -1,0 +1,550 @@
+Create a synthetic dataset for training a language model to generate, complete and normalize bank-transfer descriptions.
+
+Do not print the dataset records in the conversation.
+
+Use the available code and file-processing tools to generate, validate and save the dataset as:
+
+dataset_master.jsonl
+
+The final file must contain EXACTLY 5,000 valid JSONL records.
+
+Generate the records, validate the final file programmatically, repair or regenerate invalid, duplicated or excessively repetitive records, and return the files only after all mandatory checks pass.
+
+============================================================
+1. DATASET COMPOSITION
+============================================================
+
+Use exactly three activity types:
+
+- GENERATION: 2,000 records
+- COMPLETION: 1,500 records
+- NORMALIZATION: 1,500 records
+
+Total: 5,000 records.
+
+Among the 2,000 GENERATION records:
+
+- exactly 1,000 must contain a non-null calendar_context;
+- exactly 1,000 must have calendar_context = null.
+
+COMPLETION and NORMALIZATION must always have:
+
+calendar_context = null
+
+Every record must contain exactly TWO alternative expected bank-transfer descriptions.
+
+The entire dataset must be in English.
+
+============================================================
+2. JSONL SCHEMA
+============================================================
+
+Each physical line of dataset_master.jsonl must contain exactly one valid JSON object.
+
+Do not wrap the records in a JSON array.
+
+Every record must contain exactly these fields:
+
+{
+  "id_example": "EX0001",
+  "activity_type": "GENERATION",
+  "operation_category": "RENT",
+  "beneficiary": "Daniel Foster",
+  "amount": 750.0,
+  "currency": "EUR",
+  "reference_period": "August 2026",
+  "input_text": null,
+  "calendar_context": null,
+  "expected_output": [
+    "August 2026 rent payment",
+    "Rent payment for August 2026"
+  ],
+  "language": "en",
+  "split": null
+}
+
+No field may be missing and no additional field may be added.
+
+============================================================
+3. FIELD RULES
+============================================================
+
+id_example
+- Required.
+- Unique and sequential.
+- Exactly EX0001 through EX5000.
+- No gaps or duplicates.
+
+activity_type
+Allowed values only:
+- GENERATION
+- COMPLETION
+- NORMALIZATION
+
+operation_category
+- Required.
+- Use uppercase semantic categories.
+- Use at least 25 different categories across the dataset.
+- No single category may exceed 10% of the complete dataset.
+
+Examples include:
+
+RENT
+UTILITIES
+ELECTRICITY
+GAS
+WATER
+INTERNET
+PHONE
+UNIVERSITY
+EDUCATION
+REFUND
+LOAN
+INSURANCE
+CONDOMINIUM
+SPORTS_ACTIVITY
+HEALTHCARE
+MEDICAL_EXPENSE
+SUBSCRIPTION
+TRANSPORT
+TRAVEL
+ACCOMMODATION
+RESTAURANT
+GIFT
+FAMILY_SUPPORT
+PROFESSIONAL_SERVICE
+CONSULTING
+MAINTENANCE
+REPAIR
+PURCHASE
+EVENT
+COURSE
+MEMBERSHIP
+CHILDCARE
+TAX
+ADMINISTRATIVE_FEE
+CHARITY
+OTHER
+
+Additional realistic categories are allowed when semantically useful.
+
+beneficiary
+- Required.
+- Must always be a non-empty string.
+- Never null.
+- Represents the account holder receiving the bank transfer.
+- Use realistic but entirely synthetic names.
+- Beneficiaries may be private individuals, companies, organizations or institutions depending on the transaction.
+- Use a realistic mixture of individual and organizational beneficiaries.
+
+Examples:
+
+"Daniel Foster"
+"Emily Carter"
+"Thomas Reed"
+"Northbridge Property Services"
+"Westfield Language School"
+"Oakridge Medical Clinic"
+"Brightway Consulting Ltd."
+
+Prefer realistic synthetic beneficiary names rather than generic labels such as:
+"Property owner"
+"Private individual"
+"University"
+"Insurance provider"
+
+The beneficiary must be semantically plausible for the transaction.
+
+Do not intentionally use real identifiable individuals, public figures, real customers or personal data taken from real sources.
+
+Avoid systematic reuse of the same:
+- first names;
+- surnames;
+- company-name patterns;
+- organization suffixes.
+
+Beneficiary diversity should reflect the diversity of transaction categories.
+
+The beneficiary does not need to appear in expected_output unless its inclusion is naturally useful.
+
+amount
+- Required.
+- Never null.
+- Must always be a positive numeric value.
+- Use realistic amounts consistent with the transaction.
+- Vary amounts and avoid excessive repetition or unrealistic patterns.
+
+currency
+- Required.
+- Never null.
+- Use mainly "EUR".
+- A limited number of realistic "USD" or "GBP" examples may be included when contextually appropriate.
+- Currency must be coherent with the transaction.
+
+reference_period
+- String or null.
+- Use only when relevant.
+
+Examples:
+
+"August 2026"
+"Second installment"
+"Q3 2026"
+"2026 academic year"
+"Annual membership 2026"
+
+Vary months, years, installments and other temporal references.
+
+input_text
+
+For GENERATION:
+- must always be null.
+
+For COMPLETION:
+- must be non-null and non-empty;
+- must represent a genuinely incomplete bank-transfer description;
+- must be a plausible prefix or partial formulation of at least one expected_output, lexically or semantically;
+- must not already be a complete and well-formed bank-transfer description.
+
+Examples:
+
+"Aug rent pay"
+"Payment second university inst"
+"Insurance prem Sep"
+"Refund din"
+
+Vary the type and position of incompleteness. Do not always truncate the final word in the same way.
+
+For NORMALIZATION:
+- must be non-null and non-empty;
+- must already contain the semantic information required by expected_output;
+- may contain abbreviations, informal language, unnecessary words, capitalization, punctuation or poor formatting.
+
+Examples:
+
+"refund dinner yest"
+"SEPT RENT PAYMENT!!!"
+"pay gym sept"
+"uni fee 2nd installment"
+
+calendar_context
+
+Allowed only for GENERATION.
+
+Exactly 1,000 GENERATION records must contain a non-null calendar_context.
+
+When present, use exactly this structure:
+
+{
+  "event_title": "Tennis lesson",
+  "event_date": "2026-08-10",
+  "event_category": "Sport"
+}
+
+Requirements:
+- event_title must describe a synthetic calendar event;
+- event_date must be a valid YYYY-MM-DD date;
+- event_category must be a short semantic category;
+- the event must be directly relevant to the transaction;
+- both expected outputs must be semantically consistent with the calendar event;
+- at least one expected output must explicitly reflect useful information from the event.
+
+Examples of calendar events include:
+
+Tennis lesson
+Medical appointment
+Language course
+Private lesson
+School trip
+Conference
+Training session
+Hotel stay
+Music lesson
+Club event
+Workshop
+Professional appointment
+Course registration
+Sports event
+
+If both reference_period and calendar_context are present, they must be temporally compatible.
+
+Example:
+
+event_date = "2026-08-10"
+reference_period = "August 2026"
+
+is valid.
+
+An event in August 2026 combined with a reference period of December 2026 is invalid unless there is a clear semantic reason.
+
+For COMPLETION and NORMALIZATION:
+
+calendar_context = null
+
+expected_output
+- Required.
+- Must always be a list containing exactly TWO strings.
+- Both strings must be non-empty.
+- They must be different from each other.
+- They must represent the same underlying transaction.
+- They must be concise and natural English bank-transfer descriptions.
+- They must not introduce unsupported information.
+- They must differ meaningfully, not only through punctuation, capitalization, articles or whitespace.
+- Prefer approximately 2-10 words per description.
+
+All populated fields in a record are valid source information.
+
+expected_output may use any relevant populated field but must never introduce information absent from the record.
+
+language
+Always:
+
+"en"
+
+split
+Always:
+
+null
+
+The train/validation/test split will be assigned later, only after generation, validation, cleaning and deduplication.
+
+============================================================
+4. ACTIVITY RULES
+============================================================
+
+GENERATION
+
+Generate two bank-transfer descriptions from the structured fields.
+
+Requirements:
+- input_text = null;
+- calendar_context may be null or populated;
+- use only information available in the record;
+- do not invent unsupported facts.
+
+COMPLETION
+
+Generate two plausible completed versions of input_text.
+
+Requirements:
+- input_text must be genuinely incomplete;
+- calendar_context = null;
+- preserve the meaning of the partial input;
+- structured fields may provide compatible contextual information;
+- both outputs must constitute plausible completions;
+- do not transform the task into simple normalization.
+
+NORMALIZATION
+
+Generate two clearer and more concise versions of input_text.
+
+Requirements:
+- calendar_context = null;
+- preserve the original semantic meaning;
+- normalize abbreviations, formatting and unnecessary noise;
+- do not introduce information that was not already available;
+- do not transform the task into completion.
+
+============================================================
+5. CONSISTENCY AND DIVERSITY
+============================================================
+
+Every record must be internally coherent.
+
+Check consistency between:
+
+- activity_type
+- operation_category
+- beneficiary
+- amount
+- currency
+- reference_period
+- input_text
+- calendar_context
+- expected_output
+
+Information mentioned in expected_output must never contradict the structured fields.
+
+Ensure strong semantic and lexical diversity.
+
+Do not generate large groups of records from the same template by changing only:
+- beneficiary;
+- amount;
+- month;
+- year;
+- punctuation;
+- one word.
+
+Vary:
+- transaction scenarios;
+- categories;
+- beneficiaries;
+- amounts;
+- reference periods;
+- incomplete-text patterns;
+- normalization patterns;
+- calendar events;
+- expected-output wording.
+
+Avoid excessive repetition of expressions such as:
+
+"Payment for..."
+"Payment of..."
+"Transfer for..."
+
+These expressions may appear but must not dominate the dataset.
+
+All records must be synthetic.
+
+Do not include:
+- real IBANs;
+- bank-account numbers;
+- card numbers;
+- passwords;
+- PINs;
+- authentication codes;
+- real addresses;
+- real phone numbers;
+- identifiable private financial information.
+
+============================================================
+6. DUPLICATE AND REPETITION CONTROL
+============================================================
+
+Before finalizing the dataset, programmatically check for:
+
+1. duplicate IDs;
+2. exact duplicate records;
+3. identical expected_output pairs within the same activity_type and operation_category;
+4. obvious structural near-duplicates.
+
+For near-duplicate analysis, normalize relevant text by:
+- converting to lowercase;
+- removing punctuation;
+- collapsing whitespace;
+- normalizing dates;
+- normalizing months and years;
+- normalizing monetary amounts.
+
+Compare records primarily within the same:
+
+activity_type + operation_category
+
+Use input_text, expected_output, beneficiary and reference_period as the main comparison features.
+
+Records that differ only through superficial substitutions should be regenerated.
+
+Do not classify examples as duplicates merely because they share normal banking vocabulary.
+
+After replacing invalid or repetitive records, the dataset must still contain exactly 5,000 valid records.
+
+============================================================
+7. FINAL VALIDATION
+============================================================
+
+After generation, load dataset_master.jsonl using the available code/file-processing tools and validate the actual final file.
+
+Do not claim that validation passed unless the final dataset has actually been parsed and checked.
+
+Never fabricate validation results.
+
+All of the following mandatory checks must pass:
+
+- exactly 5,000 non-empty JSONL lines;
+- every line is valid JSON;
+- every record contains exactly the required fields;
+- IDs are exactly EX0001-EX5000 with no gaps or duplicates;
+- GENERATION = 2,000;
+- COMPLETION = 1,500;
+- NORMALIZATION = 1,500;
+- exactly 1,000 GENERATION records have non-null calendar_context;
+- exactly 1,000 GENERATION records have calendar_context = null;
+- COMPLETION and NORMALIZATION always have calendar_context = null;
+- GENERATION always has input_text = null;
+- COMPLETION and NORMALIZATION always have non-empty input_text;
+- every beneficiary is a non-empty string;
+- every amount is numeric, positive and non-null;
+- every currency is non-null;
+- every expected_output contains exactly two different non-empty strings;
+- language = "en" for every record;
+- split = null for every record;
+- every non-null calendar_context has exactly event_title, event_date and event_category;
+- every event_date is a valid YYYY-MM-DD date;
+- calendar dates and reference periods are temporally coherent when both are present;
+- at least 25 operation categories are present;
+- no operation category exceeds 10% of the dataset;
+- no exact duplicate records remain;
+- no obvious structural near-duplicates remain;
+- COMPLETION inputs are genuinely incomplete;
+- COMPLETION outputs genuinely complete the input;
+- NORMALIZATION outputs preserve the meaning of the input;
+- calendar context is relevant whenever present;
+- all records are semantically consistent.
+
+Also inspect dataset-level quality statistics:
+
+- category distribution;
+- beneficiary diversity;
+- currency distribution;
+- amount distribution;
+- calendar-event diversity;
+- input-text length distribution;
+- expected-output length distribution;
+- repeated output patterns.
+
+If any mandatory check fails:
+
+1. identify the affected records;
+2. repair or regenerate them;
+3. replace them;
+4. keep IDs EX0001-EX5000;
+5. rerun all validation checks.
+
+Repeat until every mandatory validation check passes.
+
+============================================================
+8. FINAL OUTPUT
+============================================================
+
+Return two downloadable files:
+
+1. dataset_master.jsonl
+
+The final validated dataset containing exactly 5,000 records.
+
+2. dataset_validation_report.json
+
+The validation report must include at least:
+
+{
+  "total_records": 5000,
+  "activity_distribution": {
+    "GENERATION": 2000,
+    "COMPLETION": 1500,
+    "NORMALIZATION": 1500
+  },
+  "generation_with_calendar": 1000,
+  "generation_without_calendar": 1000,
+  "unique_ids": 5000,
+  "beneficiary_null_count": 0,
+  "amount_null_count": 0,
+  "currency_null_count": 0,
+  "exact_duplicates": 0,
+  "invalid_records": 0,
+  "validation_passed": true
+}
+
+Also include:
+
+- category counts;
+- number of distinct categories;
+- beneficiary diversity statistics;
+- currency distribution;
+- amount statistics;
+- calendar-event statistics;
+- duplicate and near-duplicate analysis results;
+- number of records repaired or regenerated during validation.
+
+Do not print the 5,000 dataset records in the conversation.
+
+Start now.
