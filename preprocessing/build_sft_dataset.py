@@ -12,15 +12,15 @@ SPLITS_DIR = PROJECT_ROOT / "data" / "splits"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 
 INPUT_FILES = {
-    "train": SPLITS_DIR / "train_5000.jsonl",
-    "validation": SPLITS_DIR / "validation_5000.jsonl",
-    "test": SPLITS_DIR / "test_5000.jsonl",
+    "train": SPLITS_DIR / "train_GptPlus.jsonl",
+    "validation": SPLITS_DIR / "validation_GptPlus.jsonl",
+    "test": SPLITS_DIR / "test_GptPlus.jsonl",
 }
 
 OUTPUT_FILES = {
-    "train": PROCESSED_DIR / "train_sft_5000.jsonl",
-    "validation": PROCESSED_DIR / "validation_sft_5000.jsonl",
-    "test": PROCESSED_DIR / "test_sft_5000.jsonl",
+    "train": PROCESSED_DIR / "train_sft_GptPlus.jsonl",
+    "validation": PROCESSED_DIR / "validation_sft_GptPlus.jsonl",
+    "test": PROCESSED_DIR / "test_sft_GptPlus.jsonl",
 }
 
 

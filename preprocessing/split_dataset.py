@@ -14,7 +14,7 @@ INPUT_FILE = (
     PROJECT_ROOT
     / "data"
     / "cleaned"
-    / "dataset_master_cleaned_5000.jsonl"
+    / "dataset_master_cleaned_GptPlus.jsonl"
 )
 
 OUTPUT_DIR = PROJECT_ROOT / "data" / "splits"
