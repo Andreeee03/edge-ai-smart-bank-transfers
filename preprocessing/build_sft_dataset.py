@@ -8,19 +8,19 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-SPLITS_DIR = PROJECT_ROOT / "data" / "splits"
-PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+SPLITS_DIR = PROJECT_ROOT / "data_GptPlus" / "splits"
+PROCESSED_DIR = PROJECT_ROOT / "data_GptPlus" / "processed"
 
 INPUT_FILES = {
-    "train": SPLITS_DIR / "train_GptPlus.jsonl",
-    "validation": SPLITS_DIR / "validation_GptPlus.jsonl",
-    "test": SPLITS_DIR / "test_GptPlus.jsonl",
+    "train": SPLITS_DIR / "train.jsonl",
+    "validation": SPLITS_DIR / "validation.jsonl",
+    "test": SPLITS_DIR / "test.jsonl",
 }
 
 OUTPUT_FILES = {
-    "train": PROCESSED_DIR / "train_sft_GptPlus.jsonl",
-    "validation": PROCESSED_DIR / "validation_sft_GptPlus.jsonl",
-    "test": PROCESSED_DIR / "test_sft_GptPlus.jsonl",
+    "train": PROCESSED_DIR / "train_sft.jsonl",
+    "validation": PROCESSED_DIR / "validation_sft.jsonl",
+    "test": PROCESSED_DIR / "test_sft.jsonl",
 }
 
 

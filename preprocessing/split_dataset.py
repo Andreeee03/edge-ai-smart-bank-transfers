@@ -12,12 +12,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 INPUT_FILE = (
     PROJECT_ROOT
-    / "data"
+    / "data_GptPlus"
     / "cleaned"
-    / "dataset_master_cleaned_GptPlus.jsonl"
+    / "dataset_master_cleaned.jsonl"
 )
 
-OUTPUT_DIR = PROJECT_ROOT / "data" / "splits"
+OUTPUT_DIR = PROJECT_ROOT / "data_GptPlus" / "splits"
 
 TRAIN_FILE = OUTPUT_DIR / "train.jsonl"
 VALIDATION_FILE = OUTPUT_DIR / "validation.jsonl"
