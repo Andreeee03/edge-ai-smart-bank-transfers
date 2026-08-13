@@ -12,10 +12,10 @@ from difflib import SequenceMatcher
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-INPUT_FILE = PROJECT_ROOT / "data_GptPlus" / "raw" / "dataset_master.jsonl"
+INPUT_FILE = PROJECT_ROOT / "data_Claude" / "raw" / "dataset_master.jsonl"
 
-CLEANED_DIR = PROJECT_ROOT / "data_GptPlus" / "cleaned"
-METADATA_DIR = PROJECT_ROOT / "data_GptPlus" / "metadata"
+CLEANED_DIR = PROJECT_ROOT / "data_Claude" / "cleaned"
+METADATA_DIR = PROJECT_ROOT / "data_Claude" / "metadata"
 
 OUTPUT_FILE = CLEANED_DIR / "dataset_master_cleaned.jsonl"
 REPORT_FILE = METADATA_DIR / "preprocessing_validation_report.json"

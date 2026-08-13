@@ -1,0 +1,75 @@
+{
+  "input_file": "C:\\GitHub\\edge-ai-smart-bank-transfers\\data_Claude\\raw\\dataset_master.jsonl",
+  "output_file": "C:\\GitHub\\edge-ai-smart-bank-transfers\\data_Claude\\cleaned\\dataset_master_cleaned.jsonl",
+  "total_records": 5000,
+  "json_errors": [],
+  "validation_errors": [],
+  "activity_distribution": {
+    "GENERATION": 2000,
+    "COMPLETION": 1500,
+    "NORMALIZATION": 1500
+  },
+  "generation_with_calendar": 1000,
+  "generation_without_calendar": 1000,
+  "category_count": 36,
+  "category_distribution": {
+    "UNIVERSITY": 140,
+    "SUBSCRIPTION": 167,
+    "RESTAURANT": 167,
+    "EDUCATION": 139,
+    "EVENT": 139,
+    "MEMBERSHIP": 139,
+    "PURCHASE": 167,
+    "GIFT": 139,
+    "TRAVEL": 139,
+    "SPORTS_ACTIVITY": 139,
+    "GAS": 140,
+    "WATER": 140,
+    "UTILITIES": 181,
+    "REFUND": 139,
+    "COURSE": 139,
+    "MEDICAL_EXPENSE": 139,
+    "RENT": 195,
+    "INSURANCE": 153,
+    "PHONE": 140,
+    "HEALTHCARE": 139,
+    "ELECTRICITY": 167,
+    "PROFESSIONAL_SERVICE": 139,
+    "MAINTENANCE": 139,
+    "CHILDCARE": 112,
+    "INTERNET": 167,
+    "TAX": 98,
+    "CONSULTING": 139,
+    "REPAIR": 139,
+    "LOAN": 139,
+    "ADMINISTRATIVE_FEE": 98,
+    "CHARITY": 84,
+    "FAMILY_SUPPORT": 98,
+    "TRANSPORT": 139,
+    "ACCOMMODATION": 139,
+    "CONDOMINIUM": 139,
+    "OTHER": 84
+  },
+  "currency_distribution": {
+    "GBP": 125,
+    "EUR": 4705,
+    "USD": 170
+  },
+  "amount_statistics": {
+    "min": 5.0,
+    "max": 5000.0,
+    "average": 576.93
+  },
+  "exact_duplicate_count": 0,
+  "exact_duplicates": [],
+  "near_duplicate_threshold": 0.93,
+  "near_duplicate_candidate_count": 1,
+  "near_duplicate_candidates": [
+    {
+      "id_1": "EX3077",
+      "id_2": "EX3484",
+      "similarity": 0.9328
+    }
+  ],
+  "validation_passed": true
+}
