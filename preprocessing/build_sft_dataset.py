@@ -8,8 +8,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-SPLITS_DIR = PROJECT_ROOT / "data_GptPlus" / "splits"
-PROCESSED_DIR = PROJECT_ROOT / "data_GptPlus" / "processed"
+SPLITS_DIR = PROJECT_ROOT / "data_Claude" / "splits"
+PROCESSED_DIR = PROJECT_ROOT / "data_Claude" / "processed"
 
 INPUT_FILES = {
     "train": SPLITS_DIR / "train.jsonl",
