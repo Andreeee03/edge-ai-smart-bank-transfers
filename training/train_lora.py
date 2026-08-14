@@ -219,6 +219,12 @@ def main():
 
         save_total_limit=SAVE_TOTAL_LIMIT,
 
+        # Keep track of validation loss and restore the best checkpoint
+        # automatically when training finishes.
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+
         fp16=True,
 
         max_length=MAX_SEQ_LENGTH,
@@ -256,8 +262,23 @@ def main():
 
     trainer.train()
 
+    # Because load_best_model_at_end=True, trainer.model now contains
+    # the checkpoint with the lowest validation loss.
+    best_checkpoint = trainer.state.best_model_checkpoint
+    best_eval_loss = trainer.state.best_metric
+
+    if best_checkpoint is None or best_eval_loss is None:
+        raise RuntimeError(
+            "Training finished without a best checkpoint/eval_loss. "
+            "Check that evaluation and checkpoint saving ran correctly."
+        )
+
+    print("\nBest checkpoint selected:")
+    print(f"Checkpoint: {best_checkpoint}")
+    print(f"Best validation loss: {best_eval_loss:.6f}")
+
     # --------------------------------------------------------
-    # Save adapter
+    # Save BEST adapter
     # --------------------------------------------------------
 
     final_adapter_dir = (
@@ -266,7 +287,7 @@ def main():
     )
 
     print(
-        f"\nSaving LoRA adapter to:\n"
+        f"\nSaving best LoRA adapter to:\n"
         f"{final_adapter_dir}"
     )
 
