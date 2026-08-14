@@ -1,3 +1,12 @@
+# ============================================================
+# FINAL EVALUATION SCRIPT
+# Edge AI for Smart Bank Transfers
+# Point H - Final model evaluation
+#
+# Implements the evaluation design documented in:
+# Report_Script_H_Valutazione_Modelli
+# ============================================================
+
 import argparse
 import csv
 import gc
@@ -26,29 +35,45 @@ TRAINING_DIR = PROJECT_ROOT / "training"
 sys.path.insert(0, str(TRAINING_DIR))
 from training_config import MODEL_NAME, MAX_SEQ_LENGTH, SEED  # noqa: E402
 
+def get_base_model_label():
+    """Derive a readable base-model name from MODEL_NAME."""
+    return str(MODEL_NAME).rstrip("/").split("/")[-1]
+
+
+def slugify_label(value):
+    """Convert a label to a lowercase filesystem-safe slug."""
+    value = unicodedata.normalize("NFKC", str(value)).lower()
+    value = re.sub(r"[^a-z0-9]+", "_", value)
+    return value.strip("_")
+
+
+BASE_MODEL_LABEL = get_base_model_label()
+
 MODEL_SPECS = {
     "base": {
-        "label": "LFM2-700M base",
+        "label": BASE_MODEL_LABEL,
         "path": MODEL_NAME,
     },
     "gptplus_ft": {
-        "label": "LFM2-700M fine-tuned on GPTPlus",
+        "label": f"{BASE_MODEL_LABEL}_GPTPlus-DS",
         "path": PROJECT_ROOT / "models" / "lfm2_700m_gptplus_merged",
     },
     "claude_ft": {
-        "label": "LFM2-700M fine-tuned on Claude",
+        "label": f"{BASE_MODEL_LABEL}_Claude-DS",
         "path": PROJECT_ROOT / "models" / "lfm2_700m_claude_merged",
     },
 }
 
 TESTSET_SPECS = {
     "gptplus": {
-        "label": "GPTPlus test set",
+        "label": "GPTPlus",
+        "display_name": "GPTPlus test set",
         "raw": PROJECT_ROOT / "data_GptPlus" / "splits" / "test.jsonl",
         "sft": PROJECT_ROOT / "data_GptPlus" / "processed" / "test_sft.jsonl",
     },
     "claude": {
-        "label": "Claude test set",
+        "label": "Claude",
+        "display_name": "Claude test set",
         "raw": PROJECT_ROOT / "data_Claude" / "splits" / "test.jsonl",
         "sft": PROJECT_ROOT / "data_Claude" / "processed" / "test_sft.jsonl",
     },
@@ -65,7 +90,7 @@ PREDICTIONS_DIR = RESULTS_DIR / "predictions"
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate the base LFM2-700M model and the GPTPlus/Claude "
+            "Evaluate the base model and the GPTPlus/Claude "
             "fine-tuned merged models on both test sets."
         )
     )
@@ -274,13 +299,15 @@ def validate_sft_record(record, path, index):
         raise ValueError(f"{path}: SFT record {index} has no valid completion.")
 
 
-def completion_contains_reference(completion, references):
+def completion_contains_all_references(completion, references):
+    """Require both original references to appear in the processed completion."""
     completion_norm = normalize_text(completion)
-    return any(
-        normalize_text(ref) in completion_norm
-        or completion_norm in normalize_text(ref)
-        for ref in references
-        if normalize_text(ref)
+    normalized_refs = [normalize_text(ref) for ref in references]
+
+    return (
+        len(normalized_refs) == 2
+        and all(normalized_refs)
+        and all(ref in completion_norm for ref in normalized_refs)
     )
 
 
@@ -306,11 +333,11 @@ def load_testset(testset_name, limit=None):
     for i, (raw, sft) in enumerate(zip(raw_records, sft_records), start=1):
         validate_raw_record(raw, raw_path, i)
         validate_sft_record(sft, sft_path, i)
-        if not completion_contains_reference(sft["completion"], raw["expected_output"]):
+        if not completion_contains_all_references(sft["completion"], raw["expected_output"]):
             raise ValueError(
                 f"Raw/SFT files appear misaligned at position {i} "
                 f"({raw['id_example']}). The processed completion does not "
-                "contain either original reference."
+                "contain both original references."
             )
 
     if limit is not None:
@@ -713,8 +740,8 @@ def prepare_scored_records(
         output.append(
             {
                 "id_example": raw["id_example"],
-                "model": model_key,
-                "test_set": testset_name,
+                "model": MODEL_SPECS[model_key]["label"],
+                "test_set": TESTSET_SPECS[testset_name]["label"],
                 "activity_type": raw["activity_type"],
                 "operation_category": raw["operation_category"],
                 "prompt_source_record": {
@@ -822,7 +849,7 @@ def ensure_results_directory(overwrite):
 
 
 def save_summary_csv(summary):
-    path = RESULTS_DIR / "evaluation_summary.csv"
+    path = RESULTS_DIR / "model_comparison_summary.csv"
     fieldnames = [
         "model",
         "test_set",
@@ -846,15 +873,15 @@ def save_summary_csv(summary):
         for experiment in summary["experiments"].values():
             writer.writerow(
                 {
-                    "model": experiment["model"],
-                    "test_set": experiment["test_set"],
+                    "model": experiment["model_label"],
+                    "test_set": experiment["test_set_label"],
                     **experiment["metrics"]["overall"],
                 }
             )
 
 
 def save_activity_csv(summary):
-    path = RESULTS_DIR / "evaluation_by_activity.csv"
+    path = RESULTS_DIR / "model_comparison_by_activity.csv"
     fieldnames = [
         "model",
         "test_set",
@@ -875,8 +902,8 @@ def save_activity_csv(summary):
             for activity_type, metrics in experiment["metrics"]["by_activity_type"].items():
                 writer.writerow(
                     {
-                        "model": experiment["model"],
-                        "test_set": experiment["test_set"],
+                        "model": experiment["model_label"],
+                        "test_set": experiment["test_set_label"],
                         "activity_type": activity_type,
                         "records": metrics["records"],
                         "rouge1_f1": metrics["rouge1_f1"],
@@ -913,9 +940,16 @@ def save_qualitative_review(scored_by_experiment, max_records=60):
     candidates.sort(key=lambda x: (x[0], x[1]))
     selected = [item[3] for item in candidates[:max_records]]
     write_jsonl(
-        RESULTS_DIR / "qualitative_review_candidates.jsonl",
+        RESULTS_DIR / "qualitative_review_cases.jsonl",
         selected,
     )
+
+
+def prediction_filename(model_key, testset_name):
+    """Build the documented record-level prediction filename."""
+    model_slug = slugify_label(MODEL_SPECS[model_key]["label"])
+    test_slug = f"{slugify_label(TESTSET_SPECS[testset_name]['label'])}_test"
+    return f"predictions_{model_slug}_on_{test_slug}.jsonl"
 
 
 # ============================================================
@@ -943,7 +977,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("=" * 72)
-    print("LFM2-700M FINAL MODEL EVALUATION")
+    print(f"{BASE_MODEL_LABEL} FINAL MODEL EVALUATION")
     print("=" * 72)
     print(f"\nBase model: {MODEL_NAME}")
     print(f"Device: {device}")
@@ -954,7 +988,7 @@ def main():
     # Load raw references/metadata and the exact processed prompts used by SFT.
     testsets = {}
     for testset_name in ("gptplus", "claude"):
-        print(f"\nLoading {TESTSET_SPECS[testset_name]['label']}...")
+        print(f"\nLoading {TESTSET_SPECS[testset_name]['display_name']}...")
         raw_records, sft_records = load_testset(testset_name, args.limit)
         testsets[testset_name] = {
             "raw": raw_records,
@@ -972,7 +1006,7 @@ def main():
             experiment_key = f"{model_key}_on_{testset_name}"
             print(
                 f"\nGenerating: {MODEL_SPECS[model_key]['label']} "
-                f"on {TESTSET_SPECS[testset_name]['label']}"
+                f"on {TESTSET_SPECS[testset_name]['display_name']}"
             )
             raw_predictions[experiment_key] = generate_predictions(
                 model=model,
@@ -1028,10 +1062,11 @@ def main():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    # Save detailed record-level outputs.
+    # Save detailed record-level outputs using readable, reproducible filenames.
     for experiment_key, scored_records in scored_by_experiment.items():
+        model_key, _, testset_name = experiment_key.partition("_on_")
         write_jsonl(
-            PREDICTIONS_DIR / f"{experiment_key}.jsonl",
+            PREDICTIONS_DIR / prediction_filename(model_key, testset_name),
             scored_records,
         )
 
@@ -1045,6 +1080,7 @@ def main():
             "test_sets": {
                 key: {
                     "label": value["label"],
+                    "display_name": value["display_name"],
                     "raw_path": str(value["raw"]),
                     "processed_sft_path": str(value["sft"]),
                 }
@@ -1116,14 +1152,14 @@ def main():
     for experiment_key, scored_records in scored_by_experiment.items():
         model_key, _, testset_name = experiment_key.partition("_on_")
         summary["experiments"][experiment_key] = {
-            "model": model_key,
+            "model_key": model_key,
             "model_label": MODEL_SPECS[model_key]["label"],
-            "test_set": testset_name,
+            "test_set_key": testset_name,
             "test_set_label": TESTSET_SPECS[testset_name]["label"],
             "metrics": build_experiment_summary(scored_records),
         }
 
-    summary_path = RESULTS_DIR / "evaluation_summary.json"
+    summary_path = RESULTS_DIR / "evaluation_run_details.json"
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
@@ -1136,9 +1172,9 @@ def main():
     print("=" * 72)
     print("\nGenerated files:")
     print(f"  {summary_path}")
-    print(f"  {RESULTS_DIR / 'evaluation_summary.csv'}")
-    print(f"  {RESULTS_DIR / 'evaluation_by_activity.csv'}")
-    print(f"  {RESULTS_DIR / 'qualitative_review_candidates.jsonl'}")
+    print(f"  {RESULTS_DIR / 'model_comparison_summary.csv'}")
+    print(f"  {RESULTS_DIR / 'model_comparison_by_activity.csv'}")
+    print(f"  {RESULTS_DIR / 'qualitative_review_cases.jsonl'}")
     print(f"  {PREDICTIONS_DIR}/")
 
 
