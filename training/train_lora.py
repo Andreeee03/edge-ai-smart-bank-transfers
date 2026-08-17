@@ -165,7 +165,7 @@ def main():
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        torch_dtype=torch.float16,
+        dtype=torch.float16,
         trust_remote_code=True,
     )
 
@@ -225,6 +225,8 @@ def main():
         metric_for_best_model="eval_loss",
         greater_is_better=False,
 
+        completion_only_loss=True,
+
         fp16=True,
 
         max_length=MAX_SEQ_LENGTH,
@@ -251,7 +253,6 @@ def main():
 
         peft_config=peft_config,
 
-        formatting_func=format_example,
     )
 
     # --------------------------------------------------------
