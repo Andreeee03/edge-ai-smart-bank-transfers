@@ -56,5 +56,5 @@ LORA_TARGET_MODULES = [
     "q_proj",
     "k_proj",
     "v_proj",
-    "o_proj",
+    "self_attn.out_proj",
 ]
