@@ -26,7 +26,7 @@ MAX_SEQ_LENGTH = 256
 # TRAINING
 # ============================================================
 
-NUM_TRAIN_EPOCHS = 3
+NUM_TRAIN_EPOCHS = 5
 
 PER_DEVICE_TRAIN_BATCH_SIZE = 4
 PER_DEVICE_EVAL_BATCH_SIZE = 4
