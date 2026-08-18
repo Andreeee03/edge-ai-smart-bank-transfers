@@ -2,6 +2,8 @@
 # FINAL EVALUATION SCRIPT
 # Edge AI for Smart Bank Transfers
 # Point H - Final model evaluation
+# Corrected after inference audit: LFM2 generation is executed one prompt
+# at a time (batch_size=1) with no padding and no silent truncation.
 #
 # Implements the evaluation design documented in:
 # Report_Script_H_Valutazione_Modelli
@@ -94,7 +96,16 @@ def parse_args():
             "fine-tuned merged models on both test sets."
         )
     )
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        choices=[1],
+        help=(
+            "Generation batch size. LFM2 evaluation intentionally uses "
+            "single-example generation without padding."
+        ),
+    )
     parser.add_argument("--max-new-tokens", type=int, default=64)
     parser.add_argument("--bertscore-model", default="roberta-large")
     parser.add_argument("--bertscore-batch-size", type=int, default=32)
@@ -379,7 +390,7 @@ def load_model_and_tokenizer(model_key, device):
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
+    tokenizer.padding_side = "right"
 
     dtype = torch.float16 if device.type == "cuda" else torch.float32
     model = AutoModelForCausalLM.from_pretrained(
@@ -402,22 +413,52 @@ def generate_predictions(
     batch_size,
     max_new_tokens,
 ):
+    """
+    Generate exactly one prompt at a time.
+
+    The inference audit showed that padded batched generation changes LFM2
+    outputs. Final evaluation therefore uses batch_size=1, no padding and no
+    silent truncation.
+
+    The inference boundary mirrors training:
+        prompt.rstrip("\\r\\n") + "\\n\\n"
+    """
+    if batch_size != 1:
+        raise ValueError(
+            "LFM2 final evaluation requires batch_size=1. "
+            "Padded batched generation is intentionally disabled."
+        )
+
     predictions = []
 
-    for start in range(0, len(prompts), batch_size):
-        batch_prompts = prompts[start:start + batch_size]
+    for index, prompt in enumerate(prompts, start=1):
+        generation_prompt = prompt.rstrip("\r\n") + "\n\n"
 
-        # train_lora.py uses: prompt + "\n\n" + completion.
-        generation_prompts = [f"{prompt}\n\n" for prompt in batch_prompts]
+        # Measure the untruncated prompt first. If it exceeds the configured
+        # training sequence limit, stop instead of silently dropping content.
+        prompt_token_ids = tokenizer(
+            generation_prompt,
+            add_special_tokens=True,
+            truncation=False,
+        )["input_ids"]
+
+        if len(prompt_token_ids) > MAX_SEQ_LENGTH:
+            raise ValueError(
+                f"Prompt {index} contains {len(prompt_token_ids)} tokens, "
+                f"which exceeds MAX_SEQ_LENGTH={MAX_SEQ_LENGTH}. "
+                "Evaluation stopped instead of truncating the prompt."
+            )
 
         encoded = tokenizer(
-            generation_prompts,
+            generation_prompt,
             return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=MAX_SEQ_LENGTH,
+            padding=False,
+            truncation=False,
         )
-        encoded = {key: value.to(device) for key, value in encoded.items()}
+        encoded = {
+            key: value.to(device)
+            for key, value in encoded.items()
+        }
 
         generated = model.generate(
             **encoded,
@@ -429,19 +470,18 @@ def generate_predictions(
             use_cache=True,
         )
 
-        # generated contains the padded input plus the continuation.
+        # Decoder-only generation returns [input tokens] + [new tokens].
         input_width = encoded["input_ids"].shape[1]
-        continuation_ids = generated[:, input_width:]
+        continuation_ids = generated[0, input_width:]
 
-        batch_outputs = tokenizer.batch_decode(
+        output = tokenizer.decode(
             continuation_ids,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True,
-        )
-        predictions.extend(output.strip() for output in batch_outputs)
+        ).strip()
 
-        completed = min(start + batch_size, len(prompts))
-        print(f"  Generated {completed}/{len(prompts)}", end="\r")
+        predictions.append(output)
+        print(f"  Generated {index}/{len(prompts)}", end="\r")
 
     print()
     return predictions
@@ -959,8 +999,8 @@ def prediction_filename(model_key, testset_name):
 def main():
     args = parse_args()
 
-    if args.batch_size <= 0:
-        raise ValueError("--batch-size must be positive.")
+    if args.batch_size != 1:
+        raise ValueError("--batch-size must be exactly 1 for LFM2 generation.")
     if args.max_new_tokens <= 0:
         raise ValueError("--max-new-tokens must be positive.")
     if args.bertscore_batch_size <= 0:
@@ -1100,6 +1140,15 @@ def main():
                 "num_beams": 1,
                 "max_new_tokens": args.max_new_tokens,
                 "batch_size": args.batch_size,
+                "padding": False,
+                "truncation": False,
+                "prompt_boundary": 'prompt.rstrip("\\r\\n") + "\\n\\n"',
+                "single_example_generation": True,
+                "audit_note": (
+                    "Single-example generation is mandatory because the "
+                    "inference audit showed output instability with padded "
+                    "batched generation for LFM2."
+                ),
                 "seed": SEED,
             },
             "metrics": {
