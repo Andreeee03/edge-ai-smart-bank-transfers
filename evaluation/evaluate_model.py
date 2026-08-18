@@ -4,6 +4,8 @@
 # Point H - Final model evaluation
 # Corrected after inference audit: LFM2 generation is executed one prompt
 # at a time (batch_size=1) with no padding and no silent truncation.
+# Structured-consistency and output parsing were subsequently hardened to
+# avoid false positives from year/currency adjacency and malformed headings.
 #
 # Implements the evaluation design documented in:
 # Report_Script_H_Valutazione_Modelli
@@ -173,20 +175,76 @@ def normalize_text(text):
 
 
 def clean_alternative_prefix(text):
-    text = text.strip()
+    text = str(text).strip()
     patterns = [
         r"^\s*[-*•]\s*",
-        r"^\s*\d+\s*[\.\):\-]\s*",
-        r"^\s*alternative\s*\d+\s*[\.\):\-]\s*",
-        r"^\s*option\s*\d+\s*[\.\):\-]\s*",
+        r"^\s*\d+\s*[\.\):\-](?:[ \t]+|$)",
+        r"^\s*(?:alternative|option)\s*\d+\s*[\.\):\-]\s*",
+        r"^\s*(?:normalized\s+description|description)\s*\d+\s*[\.\):\-]\s*",
     ]
     for pattern in patterns:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
+TRAILING_COMMENTARY_PATTERN = re.compile(
+    r"(?im)^\s*(?:"
+    r"explanation|reasoning|notes?|"
+    r"both\s+(?:descriptions|alternatives)"
+    r")\b\s*:?.*$"
+)
+
+GENERIC_OUTPUT_HEADERS = {
+    "alternatives",
+    "alternative descriptions",
+    "bank transfer descriptions",
+    "descriptions",
+    "normalized descriptions",
+    "output",
+    "response",
+}
+
+STRUCTURED_FIELD_PREFIX_PATTERN = re.compile(
+    r"^\s*(?:"
+    r"category|beneficiary|amount|transfer\s+amount|reference(?:\s+period)?|"
+    r"calendar\s+context|event|date|event\s+category|partial\s+description|"
+    r"deposit|mode|destination|reason|invoice\s+number|service|departure|"
+    r"context|purpose|method|time|cost|pickup|recipient|transfer"
+    r")\s*:",
+    flags=re.IGNORECASE,
+)
+
+
+def trim_trailing_commentary(text):
+    """Remove explanation/reasoning tails that are not part of an alternative."""
+    text = str(text).strip()
+    match = TRAILING_COMMENTARY_PATTERN.search(text)
+    if match:
+        text = text[:match.start()]
+    return text.strip()
+
+
+def _clean_pair(first, second):
+    first = trim_trailing_commentary(clean_alternative_prefix(first))
+    second = trim_trailing_commentary(clean_alternative_prefix(second))
+    return [x for x in (first, second) if x]
+
+
 def extract_alternatives(text):
-    """Return up to two generated descriptions from common output formats."""
+    """
+    Return up to two generated bank-transfer descriptions.
+
+    Parsing preference:
+    1. JSON list;
+    2. explicit named alternatives/descriptions;
+    3. explicit numbered alternatives;
+    4. two plain content lines;
+    5. pipe-separated alternatives;
+    6. one non-empty fallback.
+
+    Regexes are anchored to line starts so numbers inside amounts or prose are
+    not mistaken for alternative markers.
+    """
     text = str(text).strip()
     if not text:
         return []
@@ -196,64 +254,70 @@ def extract_alternatives(text):
         try:
             value = json.loads(text)
             if isinstance(value, list):
-                return [
-                    clean_alternative_prefix(str(x))
+                parsed = [
+                    trim_trailing_commentary(clean_alternative_prefix(str(x)))
                     for x in value
                     if str(x).strip()
-                ][:2]
+                ]
+                return [x for x in parsed if x][:2]
         except json.JSONDecodeError:
             pass
 
-    # "Alternative 1: ... Alternative 2: ..." on one line.
-    explicit = re.search(
-        r"(?:alternative|option)\s*1\s*[\.\):\-]\s*(.+?)"
-        r"\s+(?:alternative|option)\s*2\s*[\.\):\-]\s*(.+)$",
+    # Explicit markers such as:
+    # Alternative 1:, Option 1:, Description 1:, Normalized description 1:
+    named_pair = re.search(
+        r"(?ims)"
+        r"^\s*(?:alternative|option|normalized\s+description|description)\s*1"
+        r"\s*[\.\):\-]\s*(.*?)"
+        r"^\s*(?:alternative|option|normalized\s+description|description)\s*2"
+        r"\s*[\.\):\-]\s*(.*?)(?="
+        r"^\s*(?:explanation|reasoning|notes?|both\s+(?:descriptions|alternatives))\b"
+        r"|\Z"
+        r")",
         text,
-        flags=re.IGNORECASE | re.DOTALL,
     )
-    if explicit:
-        return [
-            clean_alternative_prefix(explicit.group(1)),
-            clean_alternative_prefix(explicit.group(2)),
-        ]
+    if named_pair:
+        return _clean_pair(named_pair.group(1), named_pair.group(2))[:2]
 
-    # "1. ... 2. ..." on one line.
-    numbered = re.search(
-        r"^\s*1\s*[\.\):\-]\s*(.+?)"
-        r"\s+2\s*[\.\):\-]\s*(.+)$",
+    # Explicit numbered alternatives:
+    # 1. ...
+    # 2. ...
+    numbered_pair = re.search(
+        r"(?ims)"
+        r"^\s*1\s*[\.\):\-]\s*(.*?)"
+        r"^\s*2\s*[\.\):\-]\s*(.*?)(?="
+        r"^\s*(?:3\s*[\.\):\-]|explanation|reasoning|notes?|"
+        r"both\s+(?:descriptions|alternatives))\b"
+        r"|\Z"
+        r")",
         text,
-        flags=re.IGNORECASE | re.DOTALL,
     )
-    if numbered:
-        return [
-            clean_alternative_prefix(numbered.group(1)),
-            clean_alternative_prefix(numbered.group(2)),
-        ]
+    if numbered_pair:
+        return _clean_pair(numbered_pair.group(1), numbered_pair.group(2))[:2]
 
+    # Conservative plain-line fallback. Ignore headings and obvious structured
+    # field labels so arbitrary model metadata is not counted as an alternative.
     lines = []
-    for line in text.splitlines():
-        line = clean_alternative_prefix(line)
+    for raw_line in text.splitlines():
+        line = trim_trailing_commentary(clean_alternative_prefix(raw_line))
         if not line:
             continue
-        if normalize_text(line) in {
-            "alternatives",
-            "alternative descriptions",
-            "bank transfer descriptions",
-            "output",
-            "response",
-        }:
+        if normalize_text(line) in GENERIC_OUTPUT_HEADERS:
+            continue
+        if STRUCTURED_FIELD_PREFIX_PATTERN.match(line):
             continue
         lines.append(line)
 
-    if len(lines) >= 2:
-        return lines[:2]
+    if len(lines) == 2:
+        return lines
 
     if len(lines) == 1:
         pipe_parts = [
-            clean_alternative_prefix(x)
-            for x in re.split(r"\s*\|\s*", lines[0])
+            trim_trailing_commentary(clean_alternative_prefix(x))
+            for x in re.split(r"[ \t]*\|[ \t]*", lines[0])
             if x.strip()
         ]
+        pipe_parts = [x for x in pipe_parts if x]
         if len(pipe_parts) >= 2:
             return pipe_parts[:2]
         return [lines[0]]
@@ -590,6 +654,9 @@ def add_bertscore(scored_records, bert_scorer, batch_size):
 # AUTOMATIC STRUCTURED CONSISTENCY
 # ============================================================
 
+CURRENCY_CODES = ("EUR", "USD", "GBP")
+CURRENCY_PATTERN = r"(?:EUR|USD|GBP)"
+
 MONTH_TO_NUMBER = {
     "january": 1, "jan": 1,
     "february": 2, "feb": 2,
@@ -610,14 +677,106 @@ MONTH_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 
+# A year must not be embedded in a decimal/thousands-formatted number.
+# Example: 2095.93 EUR must NOT create year:2095.
+YEAR_PATTERN = re.compile(
+    r"(?<![\d.,])(?P<year>20\d{2})(?![\d.,])",
+    flags=re.IGNORECASE,
+)
 
-def extract_temporal_markers(text):
+ISO_DATE_PATTERN = re.compile(
+    r"(?<!\d)(20\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])(?!\d)"
+)
+
+# Supports ordinary decimals and common thousands separators.
+MONEY_NUMBER_PATTERN = (
+    r"(?:"
+    r"\d{1,3}(?:[ ,]\d{3})+(?:[.,]\d{1,2})?"
+    r"|"
+    r"\d+(?:[.,]\d{1,2})?"
+    r")"
+)
+
+CURRENCY_FIRST_MONEY_PATTERN = re.compile(
+    rf"\b(?P<currency>{CURRENCY_PATTERN})[ \t]*"
+    rf"(?P<amount>{MONEY_NUMBER_PATTERN})(?![\d.,])",
+    flags=re.IGNORECASE,
+)
+
+AMOUNT_FIRST_MONEY_PATTERN = re.compile(
+    rf"(?<![\d.,])(?P<amount>{MONEY_NUMBER_PATTERN})[ \t]*"
+    rf"(?P<currency>{CURRENCY_PATTERN})\b",
+    flags=re.IGNORECASE,
+)
+
+
+def parse_money_number(value):
+    """Parse common English/European money formatting into float."""
+    value = str(value).strip().replace(" ", "")
+
+    if "," in value and "." in value:
+        # Treat the last separator as decimal and the other as thousands.
+        if value.rfind(".") > value.rfind(","):
+            value = value.replace(",", "")
+        else:
+            value = value.replace(".", "").replace(",", ".")
+    elif "," in value:
+        # 1,200 -> 1200 ; 444,68 -> 444.68
+        if re.fullmatch(r"\d{1,3}(?:,\d{3})+", value):
+            value = value.replace(",", "")
+        else:
+            value = value.replace(",", ".")
+    elif "." in value:
+        # 1.200 is accepted as a thousands form; 444.68 stays decimal.
+        if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", value):
+            value = value.replace(".", "")
+
+    return float(value)
+
+
+def plain_year_value(number_text):
+    """
+    Return a 2000-2099 year for a plain four-digit token, otherwise None.
+
+    Decimal/thousands forms are deliberately excluded.
+    """
+    value = str(number_text).strip()
+    if re.fullmatch(r"20\d{2}", value):
+        return int(value)
+    return None
+
+
+def has_local_temporal_cue(text, start, end):
+    """Check whether a year token is locally supported by temporal wording."""
+    window = str(text)[max(0, start - 24):min(len(str(text)), end + 24)]
+    if MONTH_PATTERN.search(window):
+        return True
+    if re.search(r"\bq[1-4]\b", window, flags=re.IGNORECASE):
+        return True
+    if re.search(
+        r"\b(?:year|term|semester|installment|instalment)\b",
+        window,
+        flags=re.IGNORECASE,
+    ):
+        return True
+    return False
+
+
+def extract_temporal_markers(text, allowed_currency_adjacent_years=None):
+    """
+    Extract conservative temporal markers.
+
+    Currency-qualified numbers are treated carefully:
+    - EUR 2027 is considered an amount, not a year;
+    - 2027 EUR is considered a year only when supported by source-allowed
+      temporal years or a nearby temporal cue such as a month/quarter/term.
+    """
     text = str(text or "")
     low = text.lower()
     markers = set()
-
-    for year in re.findall(r"\b20\d{2}\b", low):
-        markers.add(f"year:{year}")
+    allowed_currency_adjacent_years = {
+        int(x) for x in (allowed_currency_adjacent_years or set())
+    }
 
     for quarter in re.findall(r"\bq([1-4])\b", low):
         markers.add(f"quarter:{quarter}")
@@ -626,23 +785,63 @@ def extract_temporal_markers(text):
         markers.add(f"month:{MONTH_TO_NUMBER[month_match.group(1).lower()]}")
 
     installment_patterns = {
-        "installment:first": r"\b(?:first|1st)\s+installment\b",
-        "installment:second": r"\b(?:second|2nd)\s+installment\b",
-        "installment:third": r"\b(?:third|3rd)\s+installment\b",
-        "installment:final": r"\bfinal\s+installment\b",
+        "installment:first": r"\b(?:first|1st)\s+(?:installment|instalment)\b",
+        "installment:second": r"\b(?:second|2nd)\s+(?:installment|instalment)\b",
+        "installment:third": r"\b(?:third|3rd)\s+(?:installment|instalment)\b",
+        "installment:final": r"\bfinal\s+(?:installment|instalment)\b",
     }
     for marker, pattern in installment_patterns.items():
         if re.search(pattern, low):
             markers.add(marker)
 
-    for match in re.finditer(
-        r"\b(20\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b",
-        low,
-    ):
+    # ISO dates are unambiguous.
+    for match in ISO_DATE_PATTERN.finditer(low):
         markers.add(f"year:{match.group(1)}")
         markers.add(f"month:{int(match.group(2))}")
 
+    for match in YEAR_PATTERN.finditer(low):
+        year = int(match.group("year"))
+        start, end = match.span("year")
+
+        before = low[max(0, start - 8):start]
+        after = low[end:min(len(low), end + 8)]
+
+        # "EUR 2027" -> explicit currency-first monetary amount.
+        if re.search(rf"\b{CURRENCY_PATTERN}[ \t]*$", before, flags=re.IGNORECASE):
+            continue
+
+        # "2027 EUR" is ambiguous. Keep it as a year only when the source
+        # permits that year or the local wording clearly supplies time context.
+        followed_by_currency = re.match(
+            rf"[ \t]*{CURRENCY_PATTERN}\b",
+            after,
+            flags=re.IGNORECASE,
+        )
+        if followed_by_currency:
+            if (
+                year not in allowed_currency_adjacent_years
+                and not has_local_temporal_cue(low, start, end)
+            ):
+                continue
+
+        markers.add(f"year:{year}")
+
     return markers
+
+
+def authoritative_temporal_text_for_record(record):
+    """Temporal fields that are explicit in the source record."""
+    pieces = [record.get("reference_period")]
+    calendar = record.get("calendar_context")
+    if isinstance(calendar, dict):
+        pieces.extend(
+            [
+                calendar.get("event_title"),
+                calendar.get("event_date"),
+                calendar.get("event_category"),
+            ]
+        )
+    return " ".join(str(x) for x in pieces if x is not None)
 
 
 def source_text_for_record(record):
@@ -664,44 +863,113 @@ def source_text_for_record(record):
     return " ".join(str(x) for x in pieces if x is not None)
 
 
-def monetary_mentions(text):
-    text = str(text)
+def source_temporal_markers(record):
+    """
+    Build the temporal information allowed by the source record.
+
+    Explicit reference_period/calendar fields are parsed first. Their years are
+    then used to disambiguate patterns such as "2027 EUR" appearing in input_text.
+    """
+    authoritative = extract_temporal_markers(
+        authoritative_temporal_text_for_record(record)
+    )
+    authoritative_years = {
+        int(marker.split(":", 1)[1])
+        for marker in authoritative
+        if marker.startswith("year:")
+    }
+
+    broader = extract_temporal_markers(
+        source_text_for_record(record),
+        allowed_currency_adjacent_years=authoritative_years,
+    )
+    return authoritative | broader
+
+
+def monetary_mentions(text, temporal_years=None):
+    """
+    Return currency-qualified monetary values without crossing line boundaries.
+
+    Horizontal whitespace is accepted, but newlines are not. This prevents a
+    trailing year on one alternative from being joined to the currency token on
+    the next alternative.
+
+    For amount-first forms such as "2027 EUR", a plain 20xx value is ignored
+    when it is already a source-supported temporal year or has a local temporal
+    cue. This prevents "April 2027 EUR 90" from being interpreted as 2027 EUR.
+    """
     mentions = []
+    temporal_years = {int(x) for x in (temporal_years or set())}
 
-    currency_first = re.compile(
-        r"\b(EUR|USD|GBP)\s*([0-9]+(?:[.,][0-9]{1,2})?)\b",
-        flags=re.IGNORECASE,
-    )
-    amount_first = re.compile(
-        r"\b([0-9]+(?:[.,][0-9]{1,2})?)\s*(EUR|USD|GBP)\b",
-        flags=re.IGNORECASE,
-    )
+    for line in str(text).splitlines():
+        occupied_spans = []
 
-    for currency, amount in currency_first.findall(text):
-        mentions.append((currency.upper(), float(amount.replace(",", "."))))
-    for amount, currency in amount_first.findall(text):
-        mentions.append((currency.upper(), float(amount.replace(",", "."))))
+        # Currency-first is unambiguously monetary: EUR 90, USD 1,200, etc.
+        for match in CURRENCY_FIRST_MONEY_PATTERN.finditer(line):
+            currency = match.group("currency").upper()
+            amount = parse_money_number(match.group("amount"))
+            mentions.append((currency, amount))
+            occupied_spans.append(match.span())
+
+        # Amount-first: 90 EUR. Avoid year/currency false positives.
+        for match in AMOUNT_FIRST_MONEY_PATTERN.finditer(line):
+            span = match.span()
+            if any(not (span[1] <= a or span[0] >= b) for a, b in occupied_spans):
+                continue
+
+            raw_amount = match.group("amount")
+            year_value = plain_year_value(raw_amount)
+            if year_value is not None:
+                if (
+                    year_value in temporal_years
+                    or has_local_temporal_cue(
+                        line,
+                        match.start("amount"),
+                        match.end("amount"),
+                    )
+                ):
+                    continue
+
+            currency = match.group("currency").upper()
+            amount = parse_money_number(raw_amount)
+            mentions.append((currency, amount))
 
     return mentions
 
 
-def structured_consistency(record, predicted_alternatives):
-    prediction_text = "\n".join(predicted_alternatives)
+def structured_consistency(record, predicted_alternatives, raw_prediction=None):
+    # Structured checks inspect the complete generated response so malformed
+    # extra fields cannot be hidden by the alternative parser.
+    prediction_text = (
+        str(raw_prediction).strip()
+        if raw_prediction is not None
+        else "\n".join(predicted_alternatives)
+    )
     expected_currency = str(record["currency"]).upper()
     expected_amount = float(record["amount"])
 
     currencies = {
         x.upper()
         for x in re.findall(
-            r"\b(?:EUR|USD|GBP)\b",
+            rf"\b{CURRENCY_PATTERN}\b",
             prediction_text,
             flags=re.IGNORECASE,
         )
     }
     currency_consistent = all(x == expected_currency for x in currencies)
 
+    allowed_temporal = source_temporal_markers(record)
+    allowed_years = {
+        int(marker.split(":", 1)[1])
+        for marker in allowed_temporal
+        if marker.startswith("year:")
+    }
+
     amount_consistent = True
-    for currency, amount in monetary_mentions(prediction_text):
+    for currency, amount in monetary_mentions(
+        prediction_text,
+        temporal_years=allowed_years,
+    ):
         if currency != expected_currency or not math.isclose(
             amount,
             expected_amount,
@@ -710,8 +978,10 @@ def structured_consistency(record, predicted_alternatives):
             amount_consistent = False
             break
 
-    allowed_temporal = extract_temporal_markers(source_text_for_record(record))
-    predicted_temporal = extract_temporal_markers(prediction_text)
+    predicted_temporal = extract_temporal_markers(
+        prediction_text,
+        allowed_currency_adjacent_years=allowed_years,
+    )
     temporal_consistent = predicted_temporal.issubset(allowed_temporal)
 
     beneficiary = normalize_text(record["beneficiary"])
@@ -727,8 +997,14 @@ def structured_consistency(record, predicted_alternatives):
             if len(token) >= 4
         }
         title_overlap = bool(event_title_tokens & set(prediction_norm.split()))
-        calendar_temporal = extract_temporal_markers(calendar.get("event_date", ""))
-        prediction_temporal = extract_temporal_markers(prediction_text)
+
+        calendar_temporal = extract_temporal_markers(
+            calendar.get("event_date", "")
+        )
+        prediction_temporal = extract_temporal_markers(
+            prediction_text,
+            allowed_currency_adjacent_years=allowed_years,
+        )
         date_overlap = bool(calendar_temporal & prediction_temporal)
         calendar_reflected = title_overlap or date_overlap
 
@@ -747,6 +1023,50 @@ def structured_consistency(record, predicted_alternatives):
         "beneficiary_mentioned": beneficiary_mentioned,
         "calendar_context_reflected": calendar_reflected,
     }
+
+
+def run_internal_sanity_checks():
+    """
+    Guard against the exact parsing/checker regressions found during evaluation.
+
+    These checks do not use model outputs or GPU and execute instantly at startup.
+    """
+    # Parser: named normalized descriptions must not be split at the "1:" token.
+    parsed = extract_alternatives(
+        "Normalized description 1:\n"
+        "11.08 EUR from Riverside Transit Co. Services for commuting.\n\n"
+        "Normalized description 2:\n"
+        "11.08 EUR commuting fare.\n\n"
+        "Explanation:\nextra text"
+    )
+    assert parsed == [
+        "11.08 EUR from Riverside Transit Co. Services for commuting.",
+        "11.08 EUR commuting fare.",
+    ], f"Parser sanity check failed: {parsed!r}"
+
+    # Amount checker: 2027 in 'April 2027 EUR 90' is a year, not EUR 2027.
+    mentions = monetary_mentions(
+        "water bill April 2027 EUR 90",
+        temporal_years={2027},
+    )
+    assert mentions == [("EUR", 90.0)], (
+        f"Money sanity check failed for year/currency adjacency: {mentions!r}"
+    )
+
+    # Amount checker: never join a year on one line to a currency on the next.
+    mentions = monetary_mentions(
+        "Other EUR 444.68 for June 2026\nEUR 444.68 for June 2026",
+        temporal_years={2026},
+    )
+    assert mentions == [("EUR", 444.68), ("EUR", 444.68)], (
+        f"Money newline sanity check failed: {mentions!r}"
+    )
+
+    # Temporal checker: 2095.93 EUR is an amount, not year 2095.
+    markers = extract_temporal_markers("professional service EUR 2095.93")
+    assert "year:2095" not in markers, (
+        f"Temporal decimal sanity check failed: {markers!r}"
+    )
 
 
 # ============================================================
@@ -806,7 +1126,11 @@ def prepare_scored_records(
                     predicted_alternatives, references
                 ),
                 "two_distinct_alternatives": valid_two,
-                **structured_consistency(raw, predicted_alternatives),
+                **structured_consistency(
+                    raw,
+                    predicted_alternatives,
+                    raw_prediction=raw_prediction,
+                ),
             }
         )
 
@@ -1011,6 +1335,8 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(SEED)
 
+    run_internal_sanity_checks()
+
     ensure_results_directory(args.overwrite)
     validate_model_paths()
 
@@ -1187,10 +1513,30 @@ def main():
                         "currency-qualified amount contradiction",
                         "temporal contradiction (month/year/quarter/installment)",
                     ],
+                    "amount_parser": (
+                        "Line-bounded currency/amount parsing; horizontal whitespace only; "
+                        "source-supported 20xx tokens adjacent to currency are treated as "
+                        "temporal years rather than amounts."
+                    ),
+                    "temporal_parser": (
+                        "20xx years embedded in decimal/thousands numbers are ignored; "
+                        "currency-adjacent year-like tokens are disambiguated using source "
+                        "temporal context."
+                    ),
                     "important_limitation": (
                         "This is a conservative structured check, not a complete "
                         "semantic hallucination detector; qualitative review remains necessary."
                     ),
+                },
+                "output_parser": {
+                    "strategy": (
+                        "JSON list, named alternatives/descriptions, numbered alternatives, "
+                        "conservative plain-line fallback, pipe-separated fallback."
+                    ),
+                    "line_anchored_markers": True,
+                    "trailing_commentary_removed": True,
+                    "structured_field_lines_ignored_in_plain_fallback": True,
+                    "structured_checks_use_full_raw_prediction": True,
                 },
             },
             "limit_per_test_set": args.limit,
