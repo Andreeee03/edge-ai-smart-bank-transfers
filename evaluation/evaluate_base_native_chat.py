@@ -1,5 +1,5 @@
 # ============================================================
-# NATIVE-CHAT BASELINE EVALUATION
+# FINAL NATIVE-CHAT BASELINE EVALUATION
 # Edge AI for Smart Bank Transfers
 #
 # Purpose:
@@ -179,9 +179,17 @@ def normalize_text(text):
 
 
 def clean_alternative_prefix(text):
+    """
+    Remove only genuine list/alternative wrappers.
+
+    Important: a leading '*' is removed only when it is actually used as a
+    bullet followed by whitespace. This preserves Markdown such as
+    '**Category:**'.
+    """
     text = str(text).strip()
+
     patterns = [
-        r"^\s*[-*•]\s*",
+        r"^\s*[-*•]\s+",
         r"^\s*\d+\s*[\.\):\-](?:[ \t]+|$)",
         r"^\s*(?:alternative|option)\s*\d+\s*[\.\):\-]\s*",
         r"^\s*(?:normalized\s+description|description)\s*\d+\s*[\.\):\-]\s*",
@@ -189,12 +197,24 @@ def clean_alternative_prefix(text):
     for pattern in patterns:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
 
-    # Remove a code-fence wrapper when the whole alternative is fenced.
-    text = re.sub(r"^\s*```(?:text)?\s*", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s*```\s*$", "", text, flags=re.IGNORECASE)
+    # Remove an outer code fence without modifying inner Markdown.
+    text = re.sub(
+        r"^\s*```(?:text)?[ \t]*(?:\r?\n)?",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"(?:\r?\n)?[ \t]*```\s*$",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+
     return text.strip()
 
 
+# Markdown-aware line prefix used by explicit alternative markers.
 MARKDOWN_LINE_PREFIX = (
     r"^[ \t]*"
     r"(?:>[ \t]*)?"
@@ -276,6 +296,7 @@ STRUCTURED_FIELD_PREFIX_PATTERN = re.compile(
 
 
 def trim_trailing_commentary(text):
+    """Remove an explicit explanation/reasoning tail."""
     text = str(text).strip()
     match = TRAILING_COMMENTARY_PATTERN.search(text)
     if match:
@@ -283,89 +304,286 @@ def trim_trailing_commentary(text):
     return text.strip()
 
 
-def _clean_pair(first, second):
-    first = trim_trailing_commentary(clean_alternative_prefix(first))
-    second = trim_trailing_commentary(clean_alternative_prefix(second))
-    return [x for x in (first, second) if x]
+def _clean_alternative_body(text):
+    return trim_trailing_commentary(clean_alternative_prefix(text))
 
 
-def _extract_marked_alternatives(text, marker_pattern):
-    """Extract one or two alternatives from line-anchored markers."""
-    matches = list(marker_pattern.finditer(text))
-    if not matches:
-        return []
+def _all_explicit_marker_matches(text):
+    """
+    Return all recognized numbered/named output markers in source order.
 
-    first_marker = next((m for m in matches if m.group("num") == "1"), None)
-    if first_marker is None:
-        return []
+    These positions are also used as boundaries, so a later alternative block
+    is never accidentally appended to the second alternative of an earlier
+    complete pair.
+    """
+    items = []
 
-    second_marker = next(
-        (
-            m for m in matches
-            if m.start() > first_marker.start() and m.group("num") == "2"
-        ),
-        None,
-    )
+    for family, pattern in (
+        ("named", NAMED_ALTERNATIVE_MARKER_PATTERN),
+        ("numbered", NUMBERED_ALTERNATIVE_MARKER_PATTERN),
+    ):
+        for match in pattern.finditer(text):
+            items.append(
+                {
+                    "family": family,
+                    "match": match,
+                    "start": match.start(),
+                    "end": match.end(),
+                    "num": match.group("num"),
+                }
+            )
 
-    if second_marker is not None:
-        first = text[first_marker.end():second_marker.start()]
-        second = text[second_marker.end():]
-        return _clean_pair(first, second)[:2]
+    items.sort(key=lambda item: (item["start"], item["end"]))
+    return items
 
-    first = trim_trailing_commentary(
-        clean_alternative_prefix(text[first_marker.end():])
-    )
-    return [first] if first else []
+
+def _next_explicit_boundary(text, position, all_markers):
+    """
+    Find the next recognized output marker or commentary header.
+
+    This prevents outputs such as:
+
+        1. first description
+        2. second description
+        Alternative 1: ...
+
+    from contaminating the body of numbered alternative 2.
+    """
+    candidates = [
+        item["start"]
+        for item in all_markers
+        if item["start"] >= position
+    ]
+
+    commentary = TRAILING_COMMENTARY_PATTERN.search(text, pos=position)
+    if commentary:
+        candidates.append(commentary.start())
+
+    return min(candidates) if candidates else len(text)
+
+
+def _complete_pair_candidates(text, family, pattern, all_markers):
+    """
+    Build every valid 1 -> 2 pair for one marker family.
+
+    A repeated marker 1 before marker 2 starts a new candidate instead of
+    pairing across two unrelated blocks.
+    """
+    matches = list(pattern.finditer(text))
+    candidates = []
+
+    for index, first in enumerate(matches):
+        if first.group("num") != "1":
+            continue
+
+        second = None
+        for following in matches[index + 1:]:
+            if following.group("num") == "1":
+                # A new block started before a matching "2".
+                break
+            if following.group("num") == "2":
+                second = following
+                break
+
+        if second is None:
+            continue
+
+        first_body = _clean_alternative_body(
+            text[first.end():second.start()]
+        )
+
+        second_end = _next_explicit_boundary(
+            text,
+            second.end(),
+            [
+                item
+                for item in all_markers
+                if not (
+                    item["family"] == family
+                    and item["start"] == second.start()
+                    and item["end"] == second.end()
+                )
+            ],
+        )
+        second_body = _clean_alternative_body(
+            text[second.end():second_end]
+        )
+
+        alternatives = [
+            value
+            for value in (first_body, second_body)
+            if value
+        ]
+
+        if len(alternatives) == 2:
+            candidates.append(
+                {
+                    "family": family,
+                    "start": first.start(),
+                    "end": second_end,
+                    "alternatives": alternatives,
+                    "complete": True,
+                }
+            )
+
+    return candidates
+
+
+def _single_marker_candidates(text, family, pattern, all_markers):
+    """
+    Build conservative one-alternative candidates.
+
+    This fallback is used only when no complete 1/2 pair exists anywhere in
+    the response. It preserves a genuine first alternative when generation is
+    truncated before alternative 2.
+    """
+    candidates = []
+
+    for match in pattern.finditer(text):
+        if match.group("num") != "1":
+            continue
+
+        boundary = _next_explicit_boundary(
+            text,
+            match.end(),
+            [
+                item
+                for item in all_markers
+                if not (
+                    item["family"] == family
+                    and item["start"] == match.start()
+                    and item["end"] == match.end()
+                )
+            ],
+        )
+
+        body = _clean_alternative_body(
+            text[match.end():boundary]
+        )
+
+        if body:
+            candidates.append(
+                {
+                    "family": family,
+                    "start": match.start(),
+                    "end": boundary,
+                    "alternatives": [body],
+                    "complete": False,
+                }
+            )
+
+    return candidates
 
 
 def extract_alternatives(text):
     """
     Return up to two generated bank-transfer descriptions.
 
-    Supports normal markers and Markdown variants such as:
-      **Alternative 1:**
-      **Description 1:**
-      ### Alternative 1:
-      - **Option 1 (Concise):**
-      **Bank-Transfer Description 1:**
+    Parsing priority is deliberately conservative:
+
+    1. JSON list;
+    2. earliest COMPLETE explicit pair among:
+       - named/Markdown markers (Alternative, Option, Description, ...)
+       - numbered markers (1., 2.)
+    3. earliest single explicit marker only if no complete pair exists;
+    4. conservative two-line fallback;
+    5. pipe-separated fallback;
+    6. one non-empty plain line.
+
+    Choosing the earliest complete pair fixes the native-chat pattern where
+    LFM2 first emits:
+
+        1. valid description
+        2. valid description
+
+    and then starts an additional "Alternative 1:" block. The complete
+    numbered pair must be scored, not the later truncated block.
     """
     text = str(text).strip()
     if not text:
         return []
 
+    # JSON list.
     if text.startswith("[") and text.endswith("]"):
         try:
             value = json.loads(text)
             if isinstance(value, list):
                 parsed = [
-                    trim_trailing_commentary(clean_alternative_prefix(str(x)))
-                    for x in value
-                    if str(x).strip()
+                    _clean_alternative_body(str(item))
+                    for item in value
+                    if str(item).strip()
                 ]
-                return [x for x in parsed if x][:2]
+                return [item for item in parsed if item][:2]
         except json.JSONDecodeError:
             pass
 
-    named = _extract_marked_alternatives(
-        text,
-        NAMED_ALTERNATIVE_MARKER_PATTERN,
-    )
-    if named:
-        return named[:2]
+    all_markers = _all_explicit_marker_matches(text)
 
-    numbered = _extract_marked_alternatives(
-        text,
-        NUMBERED_ALTERNATIVE_MARKER_PATTERN,
+    complete_candidates = []
+    complete_candidates.extend(
+        _complete_pair_candidates(
+            text,
+            "named",
+            NAMED_ALTERNATIVE_MARKER_PATTERN,
+            all_markers,
+        )
     )
-    if numbered:
-        return numbered[:2]
+    complete_candidates.extend(
+        _complete_pair_candidates(
+            text,
+            "numbered",
+            NUMBERED_ALTERNATIVE_MARKER_PATTERN,
+            all_markers,
+        )
+    )
 
+    if complete_candidates:
+        chosen = min(
+            complete_candidates,
+            key=lambda item: (item["start"], item["end"]),
+        )
+        return chosen["alternatives"][:2]
+
+    # No complete pair exists: preserve the earliest explicit first
+    # alternative if generation stopped before the second one.
+    single_candidates = []
+    single_candidates.extend(
+        _single_marker_candidates(
+            text,
+            "named",
+            NAMED_ALTERNATIVE_MARKER_PATTERN,
+            all_markers,
+        )
+    )
+    single_candidates.extend(
+        _single_marker_candidates(
+            text,
+            "numbered",
+            NUMBERED_ALTERNATIVE_MARKER_PATTERN,
+            all_markers,
+        )
+    )
+
+    if single_candidates:
+        chosen = min(
+            single_candidates,
+            key=lambda item: (item["start"], item["end"]),
+        )
+        return chosen["alternatives"][:1]
+
+    # Conservative plain-line fallback. Structured field blocks are NOT
+    # silently converted into bank-transfer alternatives.
     lines = []
     for raw_line in text.splitlines():
-        line = trim_trailing_commentary(clean_alternative_prefix(raw_line))
+        line = _clean_alternative_body(raw_line)
         if not line:
             continue
-        if re.fullmatch(r"\s*```(?:text)?\s*", line, flags=re.IGNORECASE):
+
+        if re.fullmatch(
+            r"\s*```(?:text)?\s*",
+            line,
+            flags=re.IGNORECASE,
+        ):
             continue
 
         header_probe = re.sub(r"[*_`#>]", "", line).strip()
@@ -375,6 +593,7 @@ def extract_alternatives(text):
             continue
         if STRUCTURED_FIELD_PREFIX_PATTERN.match(header_probe):
             continue
+
         lines.append(line)
 
     if len(lines) == 2:
@@ -382,13 +601,15 @@ def extract_alternatives(text):
 
     if len(lines) == 1:
         pipe_parts = [
-            trim_trailing_commentary(clean_alternative_prefix(x))
-            for x in re.split(r"[ \t]*\|[ \t]*", lines[0])
-            if x.strip()
+            _clean_alternative_body(part)
+            for part in re.split(r"[ \t]*\|[ \t]*", lines[0])
+            if part.strip()
         ]
-        pipe_parts = [x for x in pipe_parts if x]
+        pipe_parts = [part for part in pipe_parts if part]
+
         if len(pipe_parts) >= 2:
             return pipe_parts[:2]
+
         return [lines[0]]
 
     return []
@@ -740,7 +961,17 @@ def add_bertscore(scored_records, bert_scorer, batch_size):
 # ============================================================
 
 CURRENCY_CODES = ("EUR", "USD", "GBP")
-CURRENCY_PATTERN = r"(?:EUR|USD|GBP)"
+CURRENCY_SYMBOL_TO_CODE = {
+    "€": "EUR",
+    "$": "USD",
+    "£": "GBP",
+}
+CURRENCY_TOKEN_PATTERN = r"(?:EUR|USD|GBP|€|\$|£)"
+
+CURRENCY_TOKEN_RE = re.compile(
+    rf"(?<![A-Za-z])(?P<currency>{CURRENCY_TOKEN_PATTERN})(?![A-Za-z])",
+    flags=re.IGNORECASE,
+)
 
 MONTH_TO_NUMBER = {
     "january": 1, "jan": 1,
@@ -757,8 +988,15 @@ MONTH_TO_NUMBER = {
     "december": 12, "dec": 12,
 }
 
+FULL_MONTH_NAMES = {
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+}
+
 MONTH_PATTERN = re.compile(
-    r"\b(" + "|".join(sorted(MONTH_TO_NUMBER, key=len, reverse=True)) + r")\b",
+    r"\b(" + "|".join(
+        sorted(MONTH_TO_NUMBER, key=len, reverse=True)
+    ) + r")\b",
     flags=re.IGNORECASE,
 )
 
@@ -783,16 +1021,45 @@ MONEY_NUMBER_PATTERN = (
 )
 
 CURRENCY_FIRST_MONEY_PATTERN = re.compile(
-    rf"\b(?P<currency>{CURRENCY_PATTERN})[ \t]*"
+    rf"(?<![A-Za-z])"
+    rf"(?P<currency>{CURRENCY_TOKEN_PATTERN})"
+    rf"(?![A-Za-z])[ \t]*"
     rf"(?P<amount>{MONEY_NUMBER_PATTERN})(?![\d.,])",
     flags=re.IGNORECASE,
 )
 
 AMOUNT_FIRST_MONEY_PATTERN = re.compile(
-    rf"(?<![\d.,])(?P<amount>{MONEY_NUMBER_PATTERN})[ \t]*"
-    rf"(?P<currency>{CURRENCY_PATTERN})\b",
+    rf"(?<![\d.,])"
+    rf"(?P<amount>{MONEY_NUMBER_PATTERN})[ \t]*"
+    rf"(?P<currency>{CURRENCY_TOKEN_PATTERN})"
+    rf"(?![A-Za-z])",
     flags=re.IGNORECASE,
 )
+
+CURRENCY_BEFORE_YEAR_PATTERN = re.compile(
+    rf"(?<![A-Za-z])"
+    rf"(?:{CURRENCY_TOKEN_PATTERN})"
+    rf"(?![A-Za-z])[ \t]*$",
+    flags=re.IGNORECASE,
+)
+
+CURRENCY_AFTER_YEAR_PATTERN = re.compile(
+    rf"^[ \t]*(?:{CURRENCY_TOKEN_PATTERN})(?![A-Za-z])",
+    flags=re.IGNORECASE,
+)
+
+
+def normalize_currency_token(token):
+    """Map currency codes/symbols to canonical ISO-like codes."""
+    token = str(token).strip()
+    if token in CURRENCY_SYMBOL_TO_CODE:
+        return CURRENCY_SYMBOL_TO_CODE[token]
+
+    token_upper = token.upper()
+    if token_upper in CURRENCY_CODES:
+        return token_upper
+
+    raise ValueError(f"Unsupported currency token: {token!r}")
 
 
 def parse_money_number(value):
@@ -833,7 +1100,9 @@ def plain_year_value(number_text):
 
 def has_local_temporal_cue(text, start, end):
     """Check whether a year token is locally supported by temporal wording."""
-    window = str(text)[max(0, start - 24):min(len(str(text)), end + 24)]
+    text = str(text)
+    window = text[max(0, start - 24):min(len(text), end + 24)]
+
     if MONTH_PATTERN.search(window):
         return True
     if re.search(r"\bq[1-4]\b", window, flags=re.IGNORECASE):
@@ -844,30 +1113,86 @@ def has_local_temporal_cue(text, start, end):
         flags=re.IGNORECASE,
     ):
         return True
+
     return False
 
 
-def extract_temporal_markers(text, allowed_currency_adjacent_years=None):
+def month_has_local_temporal_context(text, start, end):
+    """
+    Decide whether a month token is being used temporally rather than as a
+    name/word fragment.
+
+    A nearby explicit year is a strong temporal signal. Source-authorized
+    months are handled separately by extract_temporal_markers().
+    """
+    text = str(text)
+    window = text[max(0, start - 20):min(len(text), end + 20)]
+
+    if YEAR_PATTERN.search(window):
+        return True
+    if ISO_DATE_PATTERN.search(window):
+        return True
+    if re.search(
+        r"\b(?:month|monthly|period|term|semester|quarter|due)\b",
+        window,
+        flags=re.IGNORECASE,
+    ):
+        return True
+
+    return False
+
+
+def extract_temporal_markers(
+    text,
+    allowed_currency_adjacent_years=None,
+    allowed_months=None,
+    assume_month_tokens_temporal=False,
+):
     """
     Extract conservative temporal markers.
 
-    Currency-qualified numbers are treated carefully:
-    - EUR 2027 is considered an amount, not a year;
-    - 2027 EUR is considered a year only when supported by source-allowed
-      temporal years or a nearby temporal cue such as a month/quarter/term.
+    Year handling:
+    - EUR 2027 / €2027 -> monetary amount, not year;
+    - 2027 EUR / 2027 € -> year only when source-supported or locally temporal;
+    - years embedded in decimal/thousands amounts are ignored.
+
+    Month handling:
+    - authoritative source fields may opt into direct month interpretation;
+    - generated/broader text treats a month token as temporal only when it is
+      source-supported or has local temporal context.
+      This prevents a truncated beneficiary such as "Daniel Nov" from being
+      misread automatically as November.
     """
     text = str(text or "")
     low = text.lower()
     markers = set()
+
     allowed_currency_adjacent_years = {
-        int(x) for x in (allowed_currency_adjacent_years or set())
+        int(value)
+        for value in (allowed_currency_adjacent_years or set())
+    }
+    allowed_months = {
+        int(value)
+        for value in (allowed_months or set())
     }
 
     for quarter in re.findall(r"\bq([1-4])\b", low):
         markers.add(f"quarter:{quarter}")
 
     for month_match in MONTH_PATTERN.finditer(low):
-        markers.add(f"month:{MONTH_TO_NUMBER[month_match.group(1).lower()]}")
+        month_token = month_match.group(1).lower()
+        month_number = MONTH_TO_NUMBER[month_token]
+
+        if (
+            assume_month_tokens_temporal
+            or month_number in allowed_months
+            or month_has_local_temporal_context(
+                low,
+                month_match.start(),
+                month_match.end(),
+            )
+        ):
+            markers.add(f"month:{month_number}")
 
     installment_patterns = {
         "installment:first": r"\b(?:first|1st)\s+(?:installment|instalment)\b",
@@ -888,20 +1213,15 @@ def extract_temporal_markers(text, allowed_currency_adjacent_years=None):
         year = int(match.group("year"))
         start, end = match.span("year")
 
-        before = low[max(0, start - 8):start]
-        after = low[end:min(len(low), end + 8)]
+        before = low[max(0, start - 10):start]
+        after = low[end:min(len(low), end + 10)]
 
-        # "EUR 2027" -> explicit currency-first monetary amount.
-        if re.search(rf"\b{CURRENCY_PATTERN}[ \t]*$", before, flags=re.IGNORECASE):
+        # "EUR 2027", "$2027", "€ 2027" -> explicit monetary amount.
+        if CURRENCY_BEFORE_YEAR_PATTERN.search(before):
             continue
 
-        # "2027 EUR" is ambiguous. Keep it as a year only when the source
-        # permits that year or the local wording clearly supplies time context.
-        followed_by_currency = re.match(
-            rf"[ \t]*{CURRENCY_PATTERN}\b",
-            after,
-            flags=re.IGNORECASE,
-        )
+        # "2027 EUR" / "2027 €" is ambiguous.
+        followed_by_currency = CURRENCY_AFTER_YEAR_PATTERN.match(after)
         if followed_by_currency:
             if (
                 year not in allowed_currency_adjacent_years
@@ -917,6 +1237,7 @@ def extract_temporal_markers(text, allowed_currency_adjacent_years=None):
 def authoritative_temporal_text_for_record(record):
     """Temporal fields that are explicit in the source record."""
     pieces = [record.get("reference_period")]
+
     calendar = record.get("calendar_context")
     if isinstance(calendar, dict):
         pieces.extend(
@@ -926,7 +1247,12 @@ def authoritative_temporal_text_for_record(record):
                 calendar.get("event_category"),
             ]
         )
-    return " ".join(str(x) for x in pieces if x is not None)
+
+    return " ".join(
+        str(value)
+        for value in pieces
+        if value is not None
+    )
 
 
 def source_text_for_record(record):
@@ -936,6 +1262,7 @@ def source_text_for_record(record):
         record.get("reference_period"),
         record.get("input_text"),
     ]
+
     calendar = record.get("calendar_context")
     if isinstance(calendar, dict):
         pieces.extend(
@@ -945,29 +1272,43 @@ def source_text_for_record(record):
                 calendar.get("event_category"),
             ]
         )
-    return " ".join(str(x) for x in pieces if x is not None)
+
+    return " ".join(
+        str(value)
+        for value in pieces
+        if value is not None
+    )
 
 
 def source_temporal_markers(record):
     """
-    Build the temporal information allowed by the source record.
+    Build temporal information allowed by the source record.
 
-    Explicit reference_period/calendar fields are parsed first. Their years are
-    then used to disambiguate patterns such as "2027 EUR" appearing in input_text.
+    Explicit reference_period/calendar fields are authoritative. Their years
+    and months are then used to disambiguate broader source text.
     """
     authoritative = extract_temporal_markers(
-        authoritative_temporal_text_for_record(record)
+        authoritative_temporal_text_for_record(record),
+        assume_month_tokens_temporal=True,
     )
+
     authoritative_years = {
         int(marker.split(":", 1)[1])
         for marker in authoritative
         if marker.startswith("year:")
     }
+    authoritative_months = {
+        int(marker.split(":", 1)[1])
+        for marker in authoritative
+        if marker.startswith("month:")
+    }
 
     broader = extract_temporal_markers(
         source_text_for_record(record),
         allowed_currency_adjacent_years=authoritative_years,
+        allowed_months=authoritative_months,
     )
+
     return authoritative | broader
 
 
@@ -975,35 +1316,46 @@ def monetary_mentions(text, temporal_years=None):
     """
     Return currency-qualified monetary values without crossing line boundaries.
 
-    Horizontal whitespace is accepted, but newlines are not. This prevents a
-    trailing year on one alternative from being joined to the currency token on
-    the next alternative.
+    Supported currency forms:
+      EUR 90, 90 EUR, €90, 90 €, $100, 100 USD, £50, ...
 
-    For amount-first forms such as "2027 EUR", a plain 20xx value is ignored
-    when it is already a source-supported temporal year or has a local temporal
-    cue. This prevents "April 2027 EUR 90" from being interpreted as 2027 EUR.
+    For amount-first forms such as "2027 EUR" or "2027 €", a plain 20xx value
+    is ignored as money when it is a source-supported temporal year or has a
+    local temporal cue.
     """
     mentions = []
-    temporal_years = {int(x) for x in (temporal_years or set())}
+    temporal_years = {
+        int(value)
+        for value in (temporal_years or set())
+    }
 
     for line in str(text).splitlines():
         occupied_spans = []
 
-        # Currency-first is unambiguously monetary: EUR 90, USD 1,200, etc.
+        # Currency-first.
         for match in CURRENCY_FIRST_MONEY_PATTERN.finditer(line):
-            currency = match.group("currency").upper()
-            amount = parse_money_number(match.group("amount"))
+            currency = normalize_currency_token(
+                match.group("currency")
+            )
+            amount = parse_money_number(
+                match.group("amount")
+            )
             mentions.append((currency, amount))
             occupied_spans.append(match.span())
 
-        # Amount-first: 90 EUR. Avoid year/currency false positives.
+        # Amount-first. Avoid year/currency false positives.
         for match in AMOUNT_FIRST_MONEY_PATTERN.finditer(line):
             span = match.span()
-            if any(not (span[1] <= a or span[0] >= b) for a, b in occupied_spans):
+
+            if any(
+                not (span[1] <= start or span[0] >= end)
+                for start, end in occupied_spans
+            ):
                 continue
 
             raw_amount = match.group("amount")
             year_value = plain_year_value(raw_amount)
+
             if year_value is not None:
                 if (
                     year_value in temporal_years
@@ -1015,7 +1367,9 @@ def monetary_mentions(text, temporal_years=None):
                 ):
                     continue
 
-            currency = match.group("currency").upper()
+            currency = normalize_currency_token(
+                match.group("currency")
+            )
             amount = parse_money_number(raw_amount)
             mentions.append((currency, amount))
 
@@ -1023,42 +1377,56 @@ def monetary_mentions(text, temporal_years=None):
 
 
 def structured_consistency(record, predicted_alternatives, raw_prediction=None):
-    # Structured checks inspect the complete generated response so malformed
-    # extra fields cannot be hidden by the alternative parser.
+    """
+    Conservative contradiction checker.
+
+    Checks inspect the FULL raw response so malformed extra fields cannot be
+    hidden by output parsing.
+    """
     prediction_text = (
         str(raw_prediction).strip()
         if raw_prediction is not None
         else "\n".join(predicted_alternatives)
     )
+
     expected_currency = str(record["currency"]).upper()
     expected_amount = float(record["amount"])
 
     currencies = {
-        x.upper()
-        for x in re.findall(
-            rf"\b{CURRENCY_PATTERN}\b",
-            prediction_text,
-            flags=re.IGNORECASE,
-        )
+        normalize_currency_token(match.group("currency"))
+        for match in CURRENCY_TOKEN_RE.finditer(prediction_text)
     }
-    currency_consistent = all(x == expected_currency for x in currencies)
+    currency_consistent = all(
+        currency == expected_currency
+        for currency in currencies
+    )
 
     allowed_temporal = source_temporal_markers(record)
+
     allowed_years = {
         int(marker.split(":", 1)[1])
         for marker in allowed_temporal
         if marker.startswith("year:")
     }
+    allowed_months = {
+        int(marker.split(":", 1)[1])
+        for marker in allowed_temporal
+        if marker.startswith("month:")
+    }
 
     amount_consistent = True
+
     for currency, amount in monetary_mentions(
         prediction_text,
         temporal_years=allowed_years,
     ):
-        if currency != expected_currency or not math.isclose(
-            amount,
-            expected_amount,
-            abs_tol=0.011,
+        if (
+            currency != expected_currency
+            or not math.isclose(
+                amount,
+                expected_amount,
+                abs_tol=0.011,
+            )
         ):
             amount_consistent = False
             break
@@ -1066,32 +1434,56 @@ def structured_consistency(record, predicted_alternatives, raw_prediction=None):
     predicted_temporal = extract_temporal_markers(
         prediction_text,
         allowed_currency_adjacent_years=allowed_years,
+        allowed_months=allowed_months,
     )
-    temporal_consistent = predicted_temporal.issubset(allowed_temporal)
+    temporal_consistent = predicted_temporal.issubset(
+        allowed_temporal
+    )
 
     beneficiary = normalize_text(record["beneficiary"])
     prediction_norm = normalize_text(prediction_text)
-    beneficiary_mentioned = bool(beneficiary) and beneficiary in prediction_norm
+    beneficiary_mentioned = (
+        bool(beneficiary)
+        and beneficiary in prediction_norm
+    )
 
     calendar_reflected = None
     calendar = record.get("calendar_context")
+
     if isinstance(calendar, dict):
         event_title_tokens = {
             token
-            for token in normalize_text(calendar.get("event_title", "")).split()
+            for token in normalize_text(
+                calendar.get("event_title", "")
+            ).split()
             if len(token) >= 4
         }
-        title_overlap = bool(event_title_tokens & set(prediction_norm.split()))
+
+        title_overlap = bool(
+            event_title_tokens
+            & set(prediction_norm.split())
+        )
 
         calendar_temporal = extract_temporal_markers(
-            calendar.get("event_date", "")
+            calendar.get("event_date", ""),
+            assume_month_tokens_temporal=True,
         )
+
         prediction_temporal = extract_temporal_markers(
             prediction_text,
             allowed_currency_adjacent_years=allowed_years,
+            allowed_months=allowed_months,
         )
-        date_overlap = bool(calendar_temporal & prediction_temporal)
-        calendar_reflected = title_overlap or date_overlap
+
+        date_overlap = bool(
+            calendar_temporal
+            & prediction_temporal
+        )
+
+        calendar_reflected = (
+            title_overlap
+            or date_overlap
+        )
 
     automatic_pass = (
         bool(predicted_alternatives)
@@ -1112,11 +1504,15 @@ def structured_consistency(record, predicted_alternatives, raw_prediction=None):
 
 def run_internal_sanity_checks():
     """
-    Guard against the exact parsing/checker regressions found during evaluation.
+    Guard against every parser/checker regression found during evaluation.
 
-    These checks do not use model outputs or GPU and execute instantly at startup.
+    These checks do not use the model or GPU and execute at startup.
     """
-    # Parser: named normalized descriptions must not be split at the "1:" token.
+
+    # ---------------------------------------------------------
+    # Output parser
+    # ---------------------------------------------------------
+
     parsed = extract_alternatives(
         "Normalized description 1:\n"
         "11.08 EUR from Riverside Transit Co. Services for commuting.\n\n"
@@ -1127,32 +1523,7 @@ def run_internal_sanity_checks():
     assert parsed == [
         "11.08 EUR from Riverside Transit Co. Services for commuting.",
         "11.08 EUR commuting fare.",
-    ], f"Parser sanity check failed: {parsed!r}"
-
-    # Amount checker: 2027 in 'April 2027 EUR 90' is a year, not EUR 2027.
-    mentions = monetary_mentions(
-        "water bill April 2027 EUR 90",
-        temporal_years={2027},
-    )
-    assert mentions == [("EUR", 90.0)], (
-        f"Money sanity check failed for year/currency adjacency: {mentions!r}"
-    )
-
-    # Amount checker: never join a year on one line to a currency on the next.
-    mentions = monetary_mentions(
-        "Other EUR 444.68 for June 2026\nEUR 444.68 for June 2026",
-        temporal_years={2026},
-    )
-    assert mentions == [("EUR", 444.68), ("EUR", 444.68)], (
-        f"Money newline sanity check failed: {mentions!r}"
-    )
-
-    # Temporal checker: 2095.93 EUR is an amount, not year 2095.
-    markers = extract_temporal_markers("professional service EUR 2095.93")
-    assert "year:2095" not in markers, (
-        f"Temporal decimal sanity check failed: {markers!r}"
-    )
-
+    ], f"Named parser sanity check failed: {parsed!r}"
 
     parsed = extract_alternatives(
         "Here are two descriptions:\n\n"
@@ -1199,12 +1570,161 @@ def run_internal_sanity_checks():
         "100 EUR payment to Example Ltd.",
     ], f"Bank-transfer description parser sanity check failed: {parsed!r}"
 
+    # Critical regression: a complete numbered pair comes before a later
+    # truncated named block. The numbered pair must win.
     parsed = extract_alternatives(
-        "**Alternative 1:**\nFirst valid description only"
+        "1. Transferred 12.68 EUR to Elmwood Energy Services Associates.\n"
+        "2. Bank transfer of 12.68 EUR for October 2026.\n\n"
+        "Alternative 1:\n"
+        "Deposited 12.68 EUR into Elmwood Energy Services Associates"
+    )
+    assert parsed == [
+        "Transferred 12.68 EUR to Elmwood Energy Services Associates.",
+        "Bank transfer of 12.68 EUR for October 2026.",
+    ], f"Numbered-before-named priority sanity check failed: {parsed!r}"
+
+    # If both complete pairs exist, the earliest complete pair is the primary
+    # response and must be scored.
+    parsed = extract_alternatives(
+        "**Alternative 1:**\n"
+        "First named description\n"
+        "**Alternative 2:**\n"
+        "Second named description\n\n"
+        "1. Later numbered description\n"
+        "2. Another later numbered description"
+    )
+    assert parsed == [
+        "First named description",
+        "Second named description",
+    ], f"Earliest-complete-pair sanity check failed: {parsed!r}"
+
+    # A single explicit marker is preserved only when no complete pair exists.
+    parsed = extract_alternatives(
+        "**Alternative 1:**\n"
+        "First valid description only"
     )
     assert parsed == [
         "First valid description only"
     ], f"Single marked alternative sanity check failed: {parsed!r}"
+
+    # Do not reinterpret arbitrary unnumbered structured sections as two
+    # causali merely to improve the baseline.
+    parsed = extract_alternatives(
+        "**EDUCATION Category:**\n"
+        "Beneficiary: Example School\n"
+        "Amount: 340 EUR\n\n"
+        "**School Fee Alternative:**\n"
+        "340 EUR"
+    )
+    assert parsed == [], (
+        f"Conservative structured-block sanity check failed: {parsed!r}"
+    )
+
+    # Preserve Markdown emphasis inside an extracted body.
+    parsed = extract_alternatives(
+        "**Alternative 1:**\n"
+        "**Category:** RENT\n"
+        "**Alternative 2:**\n"
+        "Monthly rent EUR 855"
+    )
+    assert parsed[0].startswith("**Category:**"), (
+        f"Markdown body preservation sanity check failed: {parsed!r}"
+    )
+
+    # ---------------------------------------------------------
+    # Money / currency
+    # ---------------------------------------------------------
+
+    mentions = monetary_mentions(
+        "water bill April 2027 EUR 90",
+        temporal_years={2027},
+    )
+    assert mentions == [("EUR", 90.0)], (
+        f"Money year/currency sanity check failed: {mentions!r}"
+    )
+
+    mentions = monetary_mentions(
+        "Other EUR 444.68 for June 2026\n"
+        "EUR 444.68 for June 2026",
+        temporal_years={2026},
+    )
+    assert mentions == [
+        ("EUR", 444.68),
+        ("EUR", 444.68),
+    ], f"Money newline sanity check failed: {mentions!r}"
+
+    mentions = monetary_mentions(
+        "Paid €201.28 and $1420.75 and £50"
+    )
+    assert mentions == [
+        ("EUR", 201.28),
+        ("USD", 1420.75),
+        ("GBP", 50.0),
+    ], f"Currency-symbol sanity check failed: {mentions!r}"
+
+    # 2095.93 EUR is an amount, not year 2095.
+    markers = extract_temporal_markers(
+        "professional service EUR 2095.93"
+    )
+    assert "year:2095" not in markers, (
+        f"Temporal decimal sanity check failed: {markers!r}"
+    )
+
+    # ---------------------------------------------------------
+    # Temporal disambiguation
+    # ---------------------------------------------------------
+
+    markers = extract_temporal_markers(
+        "Family Transfer - 955 EUR to Daniel Nov",
+        allowed_months={5},
+    )
+    assert "month:11" not in markers, (
+        f"Month-name false-positive sanity check failed: {markers!r}"
+    )
+
+    markers = extract_temporal_markers(
+        "Phone payment for Nov 2026",
+        allowed_months={11},
+    )
+    assert {"month:11", "year:2026"}.issubset(markers), (
+        f"Month/year sanity check failed: {markers!r}"
+    )
+
+    # ---------------------------------------------------------
+    # Full structured-consistency regression checks
+    # ---------------------------------------------------------
+
+    sample_record = {
+        "operation_category": "TAX",
+        "beneficiary": "Clearwater Public Services Office Center",
+        "amount": 2011.28,
+        "currency": "EUR",
+        "reference_period": "Q4 2026",
+        "input_text": "tax q4 2026 q4 2026",
+        "calendar_context": None,
+    }
+
+    check = structured_consistency(
+        sample_record,
+        ["Tax settlement Q4 2026"],
+        raw_prediction="Transferred €201.28 on 2026 Q4.",
+    )
+    assert check["amount_consistent"] is False, (
+        "Symbol-qualified wrong amount must be detected."
+    )
+
+    check = structured_consistency(
+        {
+            **sample_record,
+            "amount": 90.0,
+            "reference_period": "April 2027",
+        },
+        ["April 2027 water bill EUR 90"],
+        raw_prediction="April 2027 water bill EUR 90",
+    )
+    assert check["automatic_structured_consistency_pass"] is True, (
+        f"Valid structured output sanity check failed: {check!r}"
+    )
 
 
 # ============================================================
@@ -1667,13 +2187,13 @@ def main():
                     ],
                     "amount_parser": (
                         "Line-bounded currency/amount parsing; horizontal whitespace only; "
-                        "source-supported 20xx tokens adjacent to currency are treated as "
-                        "temporal years rather than amounts."
+                        "EUR/USD/GBP codes plus €/$/£ symbols; source-supported 20xx tokens "
+                        "adjacent to currency are treated as temporal years rather than amounts."
                     ),
                     "temporal_parser": (
                         "20xx years embedded in decimal/thousands numbers are ignored; "
-                        "currency-adjacent year-like tokens are disambiguated using source "
-                        "temporal context."
+                        "currency-adjacent year-like tokens and month tokens are "
+                        "disambiguated using authoritative source temporal context."
                     ),
                     "important_limitation": (
                         "This is a conservative structured check, not a complete "
@@ -1682,10 +2202,16 @@ def main():
                 },
                 "output_parser": {
                     "strategy": (
-                        "JSON list, named alternatives/descriptions, numbered alternatives, "
-                        "conservative plain-line fallback, pipe-separated fallback."
+                        "JSON list; earliest complete explicit pair across Markdown-aware "
+                        "named markers and numbered 1/2 markers; single explicit first "
+                        "alternative only when no complete pair exists; conservative "
+                        "plain-line fallback; pipe-separated fallback."
                     ),
                     "line_anchored_markers": True,
+                    "markdown_markers_supported": True,
+                    "earliest_complete_pair_priority": True,
+                    "cross_family_boundary_cutoff": True,
+                    "single_marked_alternative_preserved": True,
                     "trailing_commentary_removed": True,
                     "structured_field_lines_ignored_in_plain_fallback": True,
                     "structured_checks_use_full_raw_prediction": True,
