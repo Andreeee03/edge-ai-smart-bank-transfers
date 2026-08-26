@@ -188,14 +188,70 @@ def clean_alternative_prefix(text):
     ]
     for pattern in patterns:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    # Remove a code-fence wrapper when the whole alternative is fenced.
+    text = re.sub(r"^\s*```(?:text)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```\s*$", "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
+MARKDOWN_LINE_PREFIX = (
+    r"^[ \t]*"
+    r"(?:>[ \t]*)?"
+    r"(?:#{1,6}[ \t]*)?"
+    r"(?:[-+*][ \t]+)?"
+)
+
+MARKDOWN_EMPHASIS = r"(?:\*\*|__)?"
+
+NAMED_ALTERNATIVE_LABEL = (
+    r"(?:"
+    r"alternative|"
+    r"option|"
+    r"normalized[ \t]+description|"
+    r"description|"
+    r"bank[- \t]+transfer[ \t]+description"
+    r")"
+)
+
+NAMED_ALTERNATIVE_MARKER_PATTERN = re.compile(
+    r"(?im)"
+    + MARKDOWN_LINE_PREFIX
+    + MARKDOWN_EMPHASIS
+    + r"[ \t]*"
+    + r"(?P<label>" + NAMED_ALTERNATIVE_LABEL + r")"
+    + r"[ \t]*(?P<num>[12])"
+    + r"(?:[ \t]*\([^\)\r\n]{1,60}\))?"
+    + r"[ \t]*"
+    + r"(?:" + MARKDOWN_EMPHASIS + r"[ \t]*)?"
+    + r"[\.\):\-]"
+    + r"(?:[ \t]*" + MARKDOWN_EMPHASIS + r")?"
+    + r"[ \t]*"
+)
+
+NUMBERED_ALTERNATIVE_MARKER_PATTERN = re.compile(
+    r"(?im)"
+    + MARKDOWN_LINE_PREFIX
+    + MARKDOWN_EMPHASIS
+    + r"[ \t]*(?P<num>[12])"
+    + r"[ \t]*(?:" + MARKDOWN_EMPHASIS + r"[ \t]*)?"
+    + r"[\.\):\-]"
+    + r"(?:[ \t]*" + MARKDOWN_EMPHASIS + r")?"
+    + r"[ \t]*"
+)
+
 TRAILING_COMMENTARY_PATTERN = re.compile(
-    r"(?im)^\s*(?:"
+    r"(?im)"
+    + MARKDOWN_LINE_PREFIX
+    + MARKDOWN_EMPHASIS
+    + r"[ \t]*(?:"
     r"explanation|reasoning|notes?|"
-    r"both\s+(?:descriptions|alternatives)"
-    r")\b\s*:?.*$"
+    r"both[ \t]+(?:descriptions|alternatives)"
+    r")"
+    r"[ \t]*(?:" + MARKDOWN_EMPHASIS + r"[ \t]*)?"
+    r":?"
+    r"(?:[ \t]*" + MARKDOWN_EMPHASIS + r")?"
+    r".*$"
 )
 
 GENERIC_OUTPUT_HEADERS = {
@@ -220,7 +276,6 @@ STRUCTURED_FIELD_PREFIX_PATTERN = re.compile(
 
 
 def trim_trailing_commentary(text):
-    """Remove explanation/reasoning tails that are not part of an alternative."""
     text = str(text).strip()
     match = TRAILING_COMMENTARY_PATTERN.search(text)
     if match:
@@ -234,26 +289,50 @@ def _clean_pair(first, second):
     return [x for x in (first, second) if x]
 
 
+def _extract_marked_alternatives(text, marker_pattern):
+    """Extract one or two alternatives from line-anchored markers."""
+    matches = list(marker_pattern.finditer(text))
+    if not matches:
+        return []
+
+    first_marker = next((m for m in matches if m.group("num") == "1"), None)
+    if first_marker is None:
+        return []
+
+    second_marker = next(
+        (
+            m for m in matches
+            if m.start() > first_marker.start() and m.group("num") == "2"
+        ),
+        None,
+    )
+
+    if second_marker is not None:
+        first = text[first_marker.end():second_marker.start()]
+        second = text[second_marker.end():]
+        return _clean_pair(first, second)[:2]
+
+    first = trim_trailing_commentary(
+        clean_alternative_prefix(text[first_marker.end():])
+    )
+    return [first] if first else []
+
+
 def extract_alternatives(text):
     """
     Return up to two generated bank-transfer descriptions.
 
-    Parsing preference:
-    1. JSON list;
-    2. explicit named alternatives/descriptions;
-    3. explicit numbered alternatives;
-    4. two plain content lines;
-    5. pipe-separated alternatives;
-    6. one non-empty fallback.
-
-    Regexes are anchored to line starts so numbers inside amounts or prose are
-    not mistaken for alternative markers.
+    Supports normal markers and Markdown variants such as:
+      **Alternative 1:**
+      **Description 1:**
+      ### Alternative 1:
+      - **Option 1 (Concise):**
+      **Bank-Transfer Description 1:**
     """
     text = str(text).strip()
     if not text:
         return []
 
-    # JSON list.
     if text.startswith("[") and text.endswith("]"):
         try:
             value = json.loads(text)
@@ -267,48 +346,34 @@ def extract_alternatives(text):
         except json.JSONDecodeError:
             pass
 
-    # Explicit markers such as:
-    # Alternative 1:, Option 1:, Description 1:, Normalized description 1:
-    named_pair = re.search(
-        r"(?ims)"
-        r"^\s*(?:alternative|option|normalized\s+description|description)\s*1"
-        r"\s*[\.\):\-]\s*(.*?)"
-        r"^\s*(?:alternative|option|normalized\s+description|description)\s*2"
-        r"\s*[\.\):\-]\s*(.*?)(?="
-        r"^\s*(?:explanation|reasoning|notes?|both\s+(?:descriptions|alternatives))\b"
-        r"|\Z"
-        r")",
+    named = _extract_marked_alternatives(
         text,
+        NAMED_ALTERNATIVE_MARKER_PATTERN,
     )
-    if named_pair:
-        return _clean_pair(named_pair.group(1), named_pair.group(2))[:2]
+    if named:
+        return named[:2]
 
-    # Explicit numbered alternatives:
-    # 1. ...
-    # 2. ...
-    numbered_pair = re.search(
-        r"(?ims)"
-        r"^\s*1\s*[\.\):\-]\s*(.*?)"
-        r"^\s*2\s*[\.\):\-]\s*(.*?)(?="
-        r"^\s*(?:3\s*[\.\):\-]|explanation|reasoning|notes?|"
-        r"both\s+(?:descriptions|alternatives))\b"
-        r"|\Z"
-        r")",
+    numbered = _extract_marked_alternatives(
         text,
+        NUMBERED_ALTERNATIVE_MARKER_PATTERN,
     )
-    if numbered_pair:
-        return _clean_pair(numbered_pair.group(1), numbered_pair.group(2))[:2]
+    if numbered:
+        return numbered[:2]
 
-    # Conservative plain-line fallback. Ignore headings and obvious structured
-    # field labels so arbitrary model metadata is not counted as an alternative.
     lines = []
     for raw_line in text.splitlines():
         line = trim_trailing_commentary(clean_alternative_prefix(raw_line))
         if not line:
             continue
-        if normalize_text(line) in GENERIC_OUTPUT_HEADERS:
+        if re.fullmatch(r"\s*```(?:text)?\s*", line, flags=re.IGNORECASE):
             continue
-        if STRUCTURED_FIELD_PREFIX_PATTERN.match(line):
+
+        header_probe = re.sub(r"[*_`#>]", "", line).strip()
+        header_probe = re.sub(r"^\s*[-+]\s+", "", header_probe)
+
+        if normalize_text(header_probe) in GENERIC_OUTPUT_HEADERS:
+            continue
+        if STRUCTURED_FIELD_PREFIX_PATTERN.match(header_probe):
             continue
         lines.append(line)
 
@@ -1087,6 +1152,59 @@ def run_internal_sanity_checks():
     assert "year:2095" not in markers, (
         f"Temporal decimal sanity check failed: {markers!r}"
     )
+
+
+    parsed = extract_alternatives(
+        "Here are two descriptions:\n\n"
+        "**Alternative 1:**\n"
+        "April 2027 water bill EUR 90\n\n"
+        "**Alternative 2:**\n"
+        "EUR 90 water payment for April 2027"
+    )
+    assert parsed == [
+        "April 2027 water bill EUR 90",
+        "EUR 90 water payment for April 2027",
+    ], f"Markdown Alternative parser sanity check failed: {parsed!r}"
+
+    parsed = extract_alternatives(
+        "**Description 1:**\n"
+        "Transfer of 45 EUR to AmberView Mobile.\n\n"
+        "**Description 2:**\n"
+        "45 EUR mobile service payment."
+    )
+    assert parsed == [
+        "Transfer of 45 EUR to AmberView Mobile.",
+        "45 EUR mobile service payment.",
+    ], f"Markdown Description parser sanity check failed: {parsed!r}"
+
+    parsed = extract_alternatives(
+        "### **Option 1 (Concise):**\n"
+        "Consulting fee EUR 100\n\n"
+        "- **Option 2 (More Formal):**\n"
+        "EUR 100 consulting payment"
+    )
+    assert parsed == [
+        "Consulting fee EUR 100",
+        "EUR 100 consulting payment",
+    ], f"Markdown Option parser sanity check failed: {parsed!r}"
+
+    parsed = extract_alternatives(
+        "**Bank-Transfer Description 1:**\n"
+        "Transfer of 100 EUR to Example Ltd.\n\n"
+        "**Bank-Transfer Description 2:**\n"
+        "100 EUR payment to Example Ltd."
+    )
+    assert parsed == [
+        "Transfer of 100 EUR to Example Ltd.",
+        "100 EUR payment to Example Ltd.",
+    ], f"Bank-transfer description parser sanity check failed: {parsed!r}"
+
+    parsed = extract_alternatives(
+        "**Alternative 1:**\nFirst valid description only"
+    )
+    assert parsed == [
+        "First valid description only"
+    ], f"Single marked alternative sanity check failed: {parsed!r}"
 
 
 # ============================================================
