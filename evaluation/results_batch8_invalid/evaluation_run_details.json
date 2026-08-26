@@ -1,0 +1,477 @@
+{
+  "evaluation_design": {
+    "models": {
+      "base": {
+        "label": "LFM2-700M",
+        "path": "LiquidAI/LFM2-700M"
+      },
+      "gptplus_ft": {
+        "label": "LFM2-700M_GPTPlus-DS",
+        "path": "/home/ubuntu/edge-ai-smart-bank-transfers/models/lfm2_700m_gptplus_merged"
+      },
+      "claude_ft": {
+        "label": "LFM2-700M_Claude-DS",
+        "path": "/home/ubuntu/edge-ai-smart-bank-transfers/models/lfm2_700m_claude_merged"
+      }
+    },
+    "test_sets": {
+      "gptplus": {
+        "label": "GPTPlus",
+        "display_name": "GPTPlus test set",
+        "raw_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_GptPlus/splits/test.jsonl",
+        "processed_sft_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_GptPlus/processed/test_sft.jsonl"
+      },
+      "claude": {
+        "label": "Claude",
+        "display_name": "Claude test set",
+        "raw_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_Claude/splits/test.jsonl",
+        "processed_sft_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_Claude/processed/test_sft.jsonl"
+      }
+    },
+    "comparisons": [
+      "base_on_gptplus",
+      "base_on_claude",
+      "gptplus_ft_on_gptplus",
+      "gptplus_ft_on_claude",
+      "claude_ft_on_gptplus",
+      "claude_ft_on_claude"
+    ],
+    "generation": {
+      "decoding": "greedy",
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 64,
+      "batch_size": 8,
+      "seed": 42
+    },
+    "metrics": {
+      "rouge": {
+        "types": [
+          "rouge1",
+          "rouge2"
+        ],
+        "value": "F1",
+        "use_stemmer": true,
+        "two_reference_strategy": "Best one-to-one assignment between up to two generated alternatives and the two references; a missing alternative receives zero."
+      },
+      "bertscore": {
+        "enabled": true,
+        "model": "roberta-large",
+        "value": "F1",
+        "rescale_with_baseline": false,
+        "hash": "roberta-large_L17_no-idf_version=0.3.12(hug_trans=4.57.6)"
+      },
+      "normalized_exact_match": {
+        "normalization": "Unicode NFKC, lowercase, punctuation removal, whitespace collapse.",
+        "two_reference_strategy": "Maximum one-to-one exact matches divided by 2."
+      },
+      "structured_consistency": {
+        "automatic_checks": [
+          "currency contradiction",
+          "currency-qualified amount contradiction",
+          "temporal contradiction (month/year/quarter/installment)"
+        ],
+        "important_limitation": "This is a conservative structured check, not a complete semantic hallucination detector; qualitative review remains necessary."
+      }
+    },
+    "limit_per_test_set": null
+  },
+  "experiments": {
+    "base_on_gptplus": {
+      "model_key": "base",
+      "model_label": "LFM2-700M",
+      "test_set_key": "gptplus",
+      "test_set_label": "GPTPlus",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.3144796058410327,
+          "rouge2_f1": 0.18652787990064335,
+          "bertscore_f1": 0.8006139785647393,
+          "normalized_exact_match": 0.006,
+          "two_distinct_alternatives_rate": 0.748,
+          "automatic_structured_consistency_rate": 0.956,
+          "currency_consistency_rate": 1.0,
+          "amount_consistency_rate": 0.98,
+          "temporal_consistency_rate": 0.992,
+          "beneficiary_mention_rate": 0.416,
+          "calendar_context_reflection_rate": 0.61
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.37608412692847326,
+            "rouge2_f1": 0.2613405553258329,
+            "bertscore_f1": 0.7951752688487371,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.6666666666666666,
+            "automatic_structured_consistency_rate": 0.9733333333333334,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9866666666666667,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.3466666666666667,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.20965703672655647,
+            "rouge2_f1": 0.08391978388117778,
+            "bertscore_f1": 0.8061998476088047,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.72,
+            "automatic_structured_consistency_rate": 0.975,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.995,
+            "temporal_consistency_rate": 0.98,
+            "beneficiary_mention_rate": 0.29,
+            "calendar_context_reflection_rate": 0.61
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.3926385102395604,
+            "rouge2_f1": 0.2485259991680745,
+            "bertscore_f1": 0.7986048628886541,
+            "normalized_exact_match": 0.02,
+            "two_distinct_alternatives_rate": 0.8666666666666667,
+            "automatic_structured_consistency_rate": 0.9133333333333333,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9533333333333334,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.6533333333333333,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    },
+    "base_on_claude": {
+      "model_key": "base",
+      "model_label": "LFM2-700M",
+      "test_set_key": "claude",
+      "test_set_label": "Claude",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.21594764727276572,
+          "rouge2_f1": 0.08627187021123857,
+          "bertscore_f1": 0.7962999560832977,
+          "normalized_exact_match": 0.0,
+          "two_distinct_alternatives_rate": 0.758,
+          "automatic_structured_consistency_rate": 0.952,
+          "currency_consistency_rate": 0.998,
+          "amount_consistency_rate": 0.964,
+          "temporal_consistency_rate": 0.994,
+          "beneficiary_mention_rate": 0.388,
+          "calendar_context_reflection_rate": 0.6
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.2664468428091032,
+            "rouge2_f1": 0.10876570235927936,
+            "bertscore_f1": 0.794484547773997,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.6866666666666666,
+            "automatic_structured_consistency_rate": 0.9733333333333334,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.98,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.35333333333333333,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.1454404565655487,
+            "rouge2_f1": 0.05694411574498265,
+            "bertscore_f1": 0.7811609327793121,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.69,
+            "automatic_structured_consistency_rate": 0.965,
+            "currency_consistency_rate": 0.995,
+            "amount_consistency_rate": 0.98,
+            "temporal_consistency_rate": 0.985,
+            "beneficiary_mention_rate": 0.325,
+            "calendar_context_reflection_rate": 0.6
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.25945803934605094,
+            "rouge2_f1": 0.10288171068487235,
+            "bertscore_f1": 0.8183007287979126,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.92,
+            "automatic_structured_consistency_rate": 0.9133333333333333,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9266666666666666,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.5066666666666667,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    },
+    "gptplus_ft_on_gptplus": {
+      "model_key": "gptplus_ft",
+      "model_label": "LFM2-700M_GPTPlus-DS",
+      "test_set_key": "gptplus",
+      "test_set_label": "GPTPlus",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.6000761853759427,
+          "rouge2_f1": 0.491639494407182,
+          "bertscore_f1": 0.8889205700159073,
+          "normalized_exact_match": 0.24,
+          "two_distinct_alternatives_rate": 0.908,
+          "automatic_structured_consistency_rate": 0.838,
+          "currency_consistency_rate": 1.0,
+          "amount_consistency_rate": 0.838,
+          "temporal_consistency_rate": 1.0,
+          "beneficiary_mention_rate": 0.3,
+          "calendar_context_reflection_rate": 0.98
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.5784821126571863,
+            "rouge2_f1": 0.4545802111831524,
+            "bertscore_f1": 0.8262002712488175,
+            "normalized_exact_match": 0.043333333333333335,
+            "two_distinct_alternatives_rate": 0.7866666666666666,
+            "automatic_structured_consistency_rate": 0.9266666666666666,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9266666666666666,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.12666666666666668,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.3520936321676025,
+            "rouge2_f1": 0.2025537985208117,
+            "bertscore_f1": 0.8642495535314083,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.94,
+            "automatic_structured_consistency_rate": 0.72,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.72,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.195,
+            "calendar_context_reflection_rate": 0.98
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.9523136623724859,
+            "rouge2_f1": 0.9141463721463722,
+            "bertscore_f1": 0.9845355574289958,
+            "normalized_exact_match": 0.7566666666666667,
+            "two_distinct_alternatives_rate": 0.9866666666666667,
+            "automatic_structured_consistency_rate": 0.9066666666666666,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9066666666666666,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.6133333333333333,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    },
+    "gptplus_ft_on_claude": {
+      "model_key": "gptplus_ft",
+      "model_label": "LFM2-700M_GPTPlus-DS",
+      "test_set_key": "claude",
+      "test_set_label": "Claude",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.3719228362937614,
+          "rouge2_f1": 0.18121342298924584,
+          "bertscore_f1": 0.8580402700304985,
+          "normalized_exact_match": 0.02,
+          "two_distinct_alternatives_rate": 0.882,
+          "automatic_structured_consistency_rate": 0.804,
+          "currency_consistency_rate": 1.0,
+          "amount_consistency_rate": 0.806,
+          "temporal_consistency_rate": 0.998,
+          "beneficiary_mention_rate": 0.168,
+          "calendar_context_reflection_rate": 0.93
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.37474002169115794,
+            "rouge2_f1": 0.16007457012974255,
+            "bertscore_f1": 0.856935615738233,
+            "normalized_exact_match": 0.0033333333333333335,
+            "two_distinct_alternatives_rate": 0.8266666666666667,
+            "automatic_structured_consistency_rate": 0.8866666666666667,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.8866666666666667,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.23333333333333334,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.22293822474506458,
+            "rouge2_f1": 0.11138878693769998,
+            "bertscore_f1": 0.8504946954548359,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.88,
+            "automatic_structured_consistency_rate": 0.68,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.685,
+            "temporal_consistency_rate": 0.995,
+            "beneficiary_mention_rate": 0.15,
+            "calendar_context_reflection_rate": 0.93
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.5677517996279606,
+            "rouge2_f1": 0.2954517905841435,
+            "bertscore_f1": 0.8692056904236476,
+            "normalized_exact_match": 0.06333333333333334,
+            "two_distinct_alternatives_rate": 0.94,
+            "automatic_structured_consistency_rate": 0.8866666666666667,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.8866666666666667,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.12666666666666668,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    },
+    "claude_ft_on_gptplus": {
+      "model_key": "claude_ft",
+      "model_label": "LFM2-700M_Claude-DS",
+      "test_set_key": "gptplus",
+      "test_set_label": "GPTPlus",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.46857039435173514,
+          "rouge2_f1": 0.2843632222520225,
+          "bertscore_f1": 0.8707065156698227,
+          "normalized_exact_match": 0.024,
+          "two_distinct_alternatives_rate": 0.948,
+          "automatic_structured_consistency_rate": 0.966,
+          "currency_consistency_rate": 1.0,
+          "amount_consistency_rate": 0.968,
+          "temporal_consistency_rate": 0.998,
+          "beneficiary_mention_rate": 0.274,
+          "calendar_context_reflection_rate": 0.92
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.5626198628226492,
+            "rouge2_f1": 0.38714824352089044,
+            "bertscore_f1": 0.8886648454268773,
+            "normalized_exact_match": 0.016666666666666666,
+            "two_distinct_alternatives_rate": 0.9466666666666667,
+            "automatic_structured_consistency_rate": 0.9666666666666667,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9666666666666667,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.31333333333333335,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.3054257144144767,
+            "rouge2_f1": 0.13083923911998974,
+            "bertscore_f1": 0.8357710182666779,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.915,
+            "automatic_structured_consistency_rate": 0.95,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.955,
+            "temporal_consistency_rate": 0.995,
+            "beneficiary_mention_rate": 0.07,
+            "calendar_context_reflection_rate": 0.92
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.5920471657971659,
+            "rouge2_f1": 0.3862768451591981,
+            "bertscore_f1": 0.8993288491169612,
+            "normalized_exact_match": 0.06333333333333334,
+            "two_distinct_alternatives_rate": 0.9933333333333333,
+            "automatic_structured_consistency_rate": 0.9866666666666667,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9866666666666667,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.5066666666666667,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    },
+    "claude_ft_on_claude": {
+      "model_key": "claude_ft",
+      "model_label": "LFM2-700M_Claude-DS",
+      "test_set_key": "claude",
+      "test_set_label": "Claude",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.5383090855331293,
+          "rouge2_f1": 0.3235108485525068,
+          "bertscore_f1": 0.882645779311657,
+          "normalized_exact_match": 0.101,
+          "two_distinct_alternatives_rate": 0.912,
+          "automatic_structured_consistency_rate": 0.974,
+          "currency_consistency_rate": 1.0,
+          "amount_consistency_rate": 0.978,
+          "temporal_consistency_rate": 1.0,
+          "beneficiary_mention_rate": 0.146,
+          "calendar_context_reflection_rate": 0.95
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.5551351635407363,
+            "rouge2_f1": 0.301414811767753,
+            "bertscore_f1": 0.8998250929514567,
+            "normalized_exact_match": 0.09666666666666666,
+            "two_distinct_alternatives_rate": 0.8933333333333333,
+            "automatic_structured_consistency_rate": 1.0,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 1.0,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.18,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.4063396491764613,
+            "rouge2_f1": 0.20067201488645456,
+            "bertscore_f1": 0.8435188136994839,
+            "normalized_exact_match": 0.0225,
+            "two_distinct_alternatives_rate": 0.89,
+            "automatic_structured_consistency_rate": 0.935,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.945,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.075,
+            "calendar_context_reflection_rate": 0.95
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.6974422560010796,
+            "rouge2_f1": 0.5093919968919969,
+            "bertscore_f1": 0.9176357531547547,
+            "normalized_exact_match": 0.21,
+            "two_distinct_alternatives_rate": 0.96,
+            "automatic_structured_consistency_rate": 1.0,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 1.0,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.20666666666666667,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    }
+  }
+}

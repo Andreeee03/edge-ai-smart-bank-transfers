@@ -1,0 +1,24 @@
+LFM2 INFERENCE AUDIT
+========================================================================
+
+DATASET / PROMPT ALIGNMENT
+------------------------------------------------------------------------
+gptplus: records=500, prompts_with_trailing_newline=0, max_prompt_characters=444
+claude: records=500, prompts_with_trailing_newline=0, max_prompt_characters=440
+
+All test records passed the STRICT audit that BOTH original references are represented in the processed SFT completion.
+
+BATCH 1 VS BATCH 8
+------------------------------------------------------------------------
+LFM2-700M_GPTPlus-DS on GPTPlus: raw_equal=2/10 (0.200), empty b1/b8=0/0, two-distinct b1/b8=10/5, hit-max-no-EOS b1/b8=0/6
+LFM2-700M_GPTPlus-DS on Claude: raw_equal=2/10 (0.200), empty b1/b8=0/0, two-distinct b1/b8=10/6, hit-max-no-EOS b1/b8=0/7
+LFM2-700M_Claude-DS on GPTPlus: raw_equal=2/10 (0.200), empty b1/b8=0/0, two-distinct b1/b8=9/10, hit-max-no-EOS b1/b8=0/1
+LFM2-700M_Claude-DS on Claude: raw_equal=2/10 (0.200), empty b1/b8=0/2, two-distinct b1/b8=10/8, hit-max-no-EOS b1/b8=0/0
+
+INTERPRETATION GUIDE
+------------------------------------------------------------------------
+1) If raw_equal is 100%, batch padding/batch size is not causing the observed outputs on these records.
+2) If raw_prediction itself is degenerate, the parser did not create the degeneration; it came from model generation.
+3) If raw_prediction looks correct but predicted_alternatives is wrong/empty, the parser is the problem for that record.
+4) full_decoded_sequence lets you verify that continuation slicing starts after the complete prompt.
+5) hit_max_new_tokens_without_eos=True on repetitive outputs is evidence that the model entered a loop and never emitted EOS.

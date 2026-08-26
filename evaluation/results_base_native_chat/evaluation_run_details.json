@@ -1,0 +1,225 @@
+{
+  "evaluation_design": {
+    "models": {
+      "base_native_chat": {
+        "label": "LFM2-700M_Native-Chat",
+        "path": "LiquidAI/LFM2-700M",
+        "checkpoint_type": "original_post_trained_checkpoint",
+        "prompt_interface": "native_chat_template"
+      }
+    },
+    "test_sets": {
+      "gptplus": {
+        "label": "GPTPlus",
+        "display_name": "GPTPlus test set",
+        "raw_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_GptPlus/splits/test.jsonl",
+        "processed_sft_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_GptPlus/processed/test_sft.jsonl"
+      },
+      "claude": {
+        "label": "Claude",
+        "display_name": "Claude test set",
+        "raw_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_Claude/splits/test.jsonl",
+        "processed_sft_path": "/home/ubuntu/edge-ai-smart-bank-transfers/data_Claude/processed/test_sft.jsonl"
+      }
+    },
+    "comparisons": [
+      "base_native_chat_on_gptplus",
+      "base_native_chat_on_claude"
+    ],
+    "generation": {
+      "decoding": "greedy",
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 64,
+      "batch_size": 1,
+      "padding": false,
+      "truncation": false,
+      "prompt_interface": "native_chat_template",
+      "chat_template_method": "tokenizer.apply_chat_template",
+      "messages": "[{\"role\": \"user\", \"content\": prompt.rstrip(\"\\r\\n\")}]",
+      "add_generation_prompt": true,
+      "single_example_generation": true,
+      "audit_note": "Single-example generation is retained because the inference audit showed output instability with padded batched generation for LFM2.",
+      "comparison_note": "Greedy decoding is intentionally kept identical to the SFT-prompt evaluation so that prompt formatting is the primary experimental difference.",
+      "seed": 42
+    },
+    "metrics": {
+      "rouge": {
+        "types": [
+          "rouge1",
+          "rouge2"
+        ],
+        "value": "F1",
+        "use_stemmer": true,
+        "two_reference_strategy": "Best one-to-one assignment between up to two generated alternatives and the two references; a missing alternative receives zero."
+      },
+      "bertscore": {
+        "enabled": true,
+        "model": "roberta-large",
+        "value": "F1",
+        "rescale_with_baseline": false,
+        "hash": "roberta-large_L17_no-idf_version=0.3.12(hug_trans=4.57.6)"
+      },
+      "normalized_exact_match": {
+        "normalization": "Unicode NFKC, lowercase, punctuation removal, whitespace collapse.",
+        "two_reference_strategy": "Maximum one-to-one exact matches divided by 2."
+      },
+      "structured_consistency": {
+        "automatic_checks": [
+          "currency contradiction",
+          "currency-qualified amount contradiction",
+          "temporal contradiction (month/year/quarter/installment)"
+        ],
+        "amount_parser": "Line-bounded currency/amount parsing; horizontal whitespace only; EUR/USD/GBP codes plus €/$/£ symbols; source-supported 20xx tokens adjacent to currency are treated as temporal years rather than amounts.",
+        "temporal_parser": "20xx years embedded in decimal/thousands numbers are ignored; currency-adjacent year-like tokens and month tokens are disambiguated using authoritative source temporal context.",
+        "important_limitation": "This is a conservative structured check, not a complete semantic hallucination detector; qualitative review remains necessary."
+      },
+      "output_parser": {
+        "strategy": "JSON list; earliest complete explicit pair across Markdown-aware named markers and numbered 1/2 markers; single explicit first alternative only when no complete pair exists; conservative plain-line fallback; pipe-separated fallback.",
+        "line_anchored_markers": true,
+        "markdown_markers_supported": true,
+        "earliest_complete_pair_priority": true,
+        "cross_family_boundary_cutoff": true,
+        "single_marked_alternative_preserved": true,
+        "trailing_commentary_removed": true,
+        "structured_field_lines_ignored_in_plain_fallback": true,
+        "structured_checks_use_full_raw_prediction": true
+      }
+    },
+    "limit_per_test_set": null
+  },
+  "experiments": {
+    "base_native_chat_on_gptplus": {
+      "model_key": "base_native_chat",
+      "model_label": "LFM2-700M_Native-Chat",
+      "test_set_key": "gptplus",
+      "test_set_label": "GPTPlus",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.4402942880420435,
+          "rouge2_f1": 0.21888241838974687,
+          "bertscore_f1": 0.8321301048994064,
+          "normalized_exact_match": 0.006,
+          "two_distinct_alternatives_rate": 0.904,
+          "automatic_structured_consistency_rate": 0.982,
+          "currency_consistency_rate": 0.998,
+          "amount_consistency_rate": 0.988,
+          "temporal_consistency_rate": 0.998,
+          "beneficiary_mention_rate": 0.958,
+          "calendar_context_reflection_rate": 1.0
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.4552932235653669,
+            "rouge2_f1": 0.2605425796426139,
+            "bertscore_f1": 0.7737520164251328,
+            "normalized_exact_match": 0.02,
+            "two_distinct_alternatives_rate": 0.7666666666666667,
+            "automatic_structured_consistency_rate": 0.9666666666666667,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.98,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.9066666666666666,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.38795219754610355,
+            "rouge2_f1": 0.16103727916214772,
+            "bertscore_f1": 0.8756597845256329,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 1.0,
+            "automatic_structured_consistency_rate": 0.995,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 1.0,
+            "temporal_consistency_rate": 0.995,
+            "beneficiary_mention_rate": 1.0,
+            "calendar_context_reflection_rate": 1.0
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.4950848065133066,
+            "rouge2_f1": 0.2543491094403454,
+            "bertscore_f1": 0.8324686205387115,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.9133333333333333,
+            "automatic_structured_consistency_rate": 0.98,
+            "currency_consistency_rate": 0.9933333333333333,
+            "amount_consistency_rate": 0.98,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.9533333333333334,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    },
+    "base_native_chat_on_claude": {
+      "model_key": "base_native_chat",
+      "model_label": "LFM2-700M_Native-Chat",
+      "test_set_key": "claude",
+      "test_set_label": "Claude",
+      "metrics": {
+        "overall": {
+          "records": 500,
+          "rouge1_f1": 0.2449336694935622,
+          "rouge2_f1": 0.09003303426184127,
+          "bertscore_f1": 0.8183093158602714,
+          "normalized_exact_match": 0.001,
+          "two_distinct_alternatives_rate": 0.918,
+          "automatic_structured_consistency_rate": 0.986,
+          "currency_consistency_rate": 0.998,
+          "amount_consistency_rate": 0.986,
+          "temporal_consistency_rate": 0.998,
+          "beneficiary_mention_rate": 0.942,
+          "calendar_context_reflection_rate": 1.0
+        },
+        "by_activity_type": {
+          "COMPLETION": {
+            "records": 150,
+            "rouge1_f1": 0.26305454043419324,
+            "rouge2_f1": 0.10281964382451012,
+            "bertscore_f1": 0.7672543289264043,
+            "normalized_exact_match": 0.0033333333333333335,
+            "two_distinct_alternatives_rate": 0.7933333333333333,
+            "automatic_structured_consistency_rate": 0.9866666666666667,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.9866666666666667,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.8933333333333333,
+            "calendar_context_reflection_rate": null
+          },
+          "GENERATION": {
+            "records": 200,
+            "rouge1_f1": 0.2159878029154717,
+            "rouge2_f1": 0.07108919925880543,
+            "bertscore_f1": 0.8550948596000671,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 1.0,
+            "automatic_structured_consistency_rate": 0.995,
+            "currency_consistency_rate": 1.0,
+            "amount_consistency_rate": 0.995,
+            "temporal_consistency_rate": 1.0,
+            "beneficiary_mention_rate": 0.985,
+            "calendar_context_reflection_rate": 1.0
+          },
+          "NORMALIZATION": {
+            "records": 150,
+            "rouge1_f1": 0.26540728732371843,
+            "rouge2_f1": 0.10250487136988685,
+            "bertscore_f1": 0.8203169111410776,
+            "normalized_exact_match": 0.0,
+            "two_distinct_alternatives_rate": 0.9333333333333333,
+            "automatic_structured_consistency_rate": 0.9733333333333334,
+            "currency_consistency_rate": 0.9933333333333333,
+            "amount_consistency_rate": 0.9733333333333334,
+            "temporal_consistency_rate": 0.9933333333333333,
+            "beneficiary_mention_rate": 0.9333333333333333,
+            "calendar_context_reflection_rate": null
+          }
+        }
+      }
+    }
+  }
+}

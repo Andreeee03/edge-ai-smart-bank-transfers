@@ -1,0 +1,5 @@
+model,test_set,records,batch1_vs_batch8_raw_equal,batch1_vs_batch8_raw_equal_rate,batch1_empty_outputs,batch8_empty_outputs,batch1_two_distinct,batch8_two_distinct,batch1_hit_max_without_eos,batch8_hit_max_without_eos
+LFM2-700M_GPTPlus-DS,GPTPlus,10,2,0.2,0,0,10,5,0,6
+LFM2-700M_GPTPlus-DS,Claude,10,2,0.2,0,0,10,6,0,7
+LFM2-700M_Claude-DS,GPTPlus,10,2,0.2,0,0,9,10,0,1
+LFM2-700M_Claude-DS,Claude,10,2,0.2,0,2,10,8,0,0

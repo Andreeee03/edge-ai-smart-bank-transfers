@@ -1,0 +1,3 @@
+model,test_set,records,rouge1_f1,rouge2_f1,bertscore_f1,normalized_exact_match,two_distinct_alternatives_rate,automatic_structured_consistency_rate,currency_consistency_rate,amount_consistency_rate,temporal_consistency_rate,beneficiary_mention_rate,calendar_context_reflection_rate
+LFM2-700M_Native-Chat,GPTPlus,500,0.4402942880420435,0.21888241838974687,0.8321301048994064,0.006,0.904,0.982,0.998,0.988,0.998,0.958,1.0
+LFM2-700M_Native-Chat,Claude,500,0.2449336694935622,0.09003303426184127,0.8183093158602714,0.001,0.918,0.986,0.998,0.986,0.998,0.942,1.0
