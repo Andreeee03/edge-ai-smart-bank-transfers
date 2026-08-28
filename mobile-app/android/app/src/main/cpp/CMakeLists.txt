@@ -1,10 +1,14 @@
-cmake_minimum_required(VERSION 3.31.6)
+﻿cmake_minimum_required(VERSION 3.31.6)
 
 project(edge_ai_native)
 
-set(LLAMA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../llama.cpp")
+set(
+        LLAMA_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../llama.cpp"
+)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+
 set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -32,10 +36,13 @@ target_include_directories(
         edge_ai_native
         PRIVATE
         "${LLAMA_DIR}/include"
+        "${LLAMA_DIR}/ggml/include"
 )
 
 target_link_libraries(
         edge_ai_native
+        PRIVATE
         llama
+        ggml
         log
 )
