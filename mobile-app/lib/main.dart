@@ -29,8 +29,7 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
   static const platform = MethodChannel('edge_ai/native');
 
   String _status = 'Ready';
-
-  bool _loading = false;
+  bool _busy = false;
 
   Future<void> _testBridge() async {
     setState(() {
@@ -38,8 +37,7 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
     });
 
     try {
-      final result =
-          await platform.invokeMethod<String>('ping');
+      final result = await platform.invokeMethod<String>('ping');
 
       setState(() {
         _status = result ?? 'No response';
@@ -53,13 +51,12 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
 
   Future<void> _loadModel() async {
     setState(() {
-      _loading = true;
+      _busy = true;
       _status = 'Loading Q5 model...';
     });
 
     try {
-      final result =
-          await platform.invokeMethod<String>('loadModel');
+      final result = await platform.invokeMethod<String>('loadModel');
 
       setState(() {
         _status = result ?? 'No response';
@@ -70,7 +67,31 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
       });
     } finally {
       setState(() {
-        _loading = false;
+        _busy = false;
+      });
+    }
+  }
+
+  Future<void> _createContext() async {
+    setState(() {
+      _busy = true;
+      _status = 'Creating llama context...';
+    });
+
+    try {
+      final result =
+          await platform.invokeMethod<String>('createContext');
+
+      setState(() {
+        _status = result ?? 'No response';
+      });
+    } on PlatformException catch (e) {
+      setState(() {
+        _status = 'Error: ${e.message}';
+      });
+    } finally {
+      setState(() {
+        _busy = false;
       });
     }
   }
@@ -79,9 +100,7 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Edge AI Smart Bank Transfers',
-        ),
+        title: const Text('Edge AI Smart Bank Transfers'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -89,19 +108,18 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ElevatedButton(
-              onPressed: _testBridge,
-              child: const Text(
-                'Test native bridge',
-              ),
+              onPressed: _busy ? null : _testBridge,
+              child: const Text('Test native bridge'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loading ? null : _loadModel,
-              child: Text(
-                _loading
-                    ? 'Loading model...'
-                    : 'Load Q5 model',
-              ),
+              onPressed: _busy ? null : _loadModel,
+              child: const Text('Load Q5 model'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _busy ? null : _createContext,
+              child: const Text('Create context'),
             ),
             const SizedBox(height: 24),
             const Text(

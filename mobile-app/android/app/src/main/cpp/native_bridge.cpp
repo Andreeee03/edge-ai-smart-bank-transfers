@@ -7,6 +7,7 @@
 #include "ggml-backend.h"
 
 static llama_model * g_model = nullptr;
+static llama_context * g_ctx = nullptr;
 static bool g_backend_initialized = false;
 static std::mutex g_mutex;
 
@@ -190,5 +191,50 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeLoadModel(
 
     return env->NewStringUTF(
         "Model load OK"
+    );
+}
+
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeCreateContext(
+        JNIEnv * env,
+        jobject /* this */) {
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (g_model == nullptr) {
+        return env->NewStringUTF(
+            "Context creation FAILED: model not loaded"
+        );
+    }
+
+    if (g_ctx != nullptr) {
+        return env->NewStringUTF(
+            "Context already created OK"
+        );
+    }
+
+    llama_context_params ctx_params =
+        llama_context_default_params();
+
+    ctx_params.n_ctx = 512;
+    ctx_params.n_batch = 512;
+    ctx_params.n_threads = 4;
+    ctx_params.n_threads_batch = 4;
+
+    g_ctx = llama_init_from_model(
+        g_model,
+        ctx_params
+    );
+
+    if (g_ctx == nullptr) {
+        return env->NewStringUTF(
+            "Context creation FAILED"
+        );
+    }
+
+    return env->NewStringUTF(
+        "Context creation OK - n_ctx=512"
     );
 }

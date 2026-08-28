@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private external fun nativeInit(nativeLibDir: String): String
     private external fun nativePing(): String
     private external fun nativeLoadModel(modelPath: String): String
+    private external fun nativeCreateContext(): String
 
     @Volatile
     private var nativeInitStatus: String? = null
@@ -103,9 +104,31 @@ class MainActivity : FlutterActivity() {
                         }
                     }.start()
                 }
+                "createContext" -> {
+                    Thread {
+                        try {
+                            val response = nativeCreateContext()
+
+                            runOnUiThread {
+                                result.success(response)
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                result.error(
+                                    "CONTEXT_ERROR",
+                                    e.message,
+                                    null
+                                )
+                            }
+                        }
+                    }.start()
+                }
+
+
 
                 else -> result.notImplemented()
             }
         }
     }
 }
+
