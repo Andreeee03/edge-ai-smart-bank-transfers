@@ -1,62 +1,26 @@
 # ============================================================
 # Edge AI for Smart Bank Transfers
-# .gitignore
-# ============================================================
-#
-# Policy:
-# - Keep source code, configuration, datasets, reports and
-#   evaluation results in GitHub.
-# - Do NOT push heavy trained-model artifacts to GitHub.
-# - Download the ignored model artifacts from EC2 to the local PC
-#   before terminating the EC2 instance.
 # ============================================================
 
-
 # ------------------------------------------------------------
-# TRAINING / LoRA ARTIFACTS
+# HEAVY MODEL ARTIFACTS
 # ------------------------------------------------------------
-# Contains training checkpoints, final_adapter and tokenizer/model
-# files produced by LoRA fine-tuning.
 
-models/lfm2_700m_gptplus_lora/
-models/lfm2_700m_claude_lora/
-
-
-# ------------------------------------------------------------
-# MERGED HUGGING FACE MODELS
-# ------------------------------------------------------------
-# Full models produced after merging the LoRA adapters with
-# the LFM2-700M base model.
-
-models/lfm2_700m_gptplus_merged/
-models/lfm2_700m_claude_merged/
-
-
-# ------------------------------------------------------------
-# GGUF MODEL FILES
-# ------------------------------------------------------------
-# Heavy F16 and quantized GGUF files are downloaded to the PC.
-# JSON conversion reports in models/gguf/ remain trackable.
-
-models/gguf/*.gguf
-
-
-# ------------------------------------------------------------
-# SAFETY: LARGE MODEL / CHECKPOINT FILE TYPES
-# ------------------------------------------------------------
-# Prevent accidental commits if model artifacts are generated
-# outside the expected directories.
-
+# Hugging Face / LoRA weights
 *.safetensors
-pytorch_model*.bin
-*.gguf
+
+# PyTorch checkpoints and optimizer states
 *.pt
 *.pth
 *.ckpt
+pytorch_model*.bin
+
+# GGUF models
+*.gguf
 
 
 # ------------------------------------------------------------
-# PYTHON CACHE / LOCAL ENVIRONMENTS
+# PYTHON CACHE / ENVIRONMENTS
 # ------------------------------------------------------------
 
 __pycache__/
@@ -70,7 +34,7 @@ ENV/
 
 
 # ------------------------------------------------------------
-# LOCAL TOOL / IDE FILES
+# IDE / OS
 # ------------------------------------------------------------
 
 .vscode/
@@ -90,7 +54,7 @@ Thumbs.db
 
 
 # ------------------------------------------------------------
-# TEMPORARY FILES / LOGS
+# TEMPORARY / RUNTIME FILES
 # ------------------------------------------------------------
 
 *.log

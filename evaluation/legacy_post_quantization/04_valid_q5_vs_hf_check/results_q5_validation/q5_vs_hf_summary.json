@@ -1,0 +1,18 @@
+{
+    "hf_model": "/home/ubuntu/edge-ai-smart-bank-transfers/models/lfm2_700m_gptplus_merged",
+    "q5_model": "/home/ubuntu/edge-ai-smart-bank-transfers/models/gguf/LFM2-700M_GPTPlus-DS_Q5_K_M.gguf",
+    "test_file": "/home/ubuntu/edge-ai-smart-bank-transfers/data_GptPlus/processed/test_sft.jsonl",
+    "examples_tested": 500,
+    "seed": 42,
+    "hf_avg_rouge1": 0.862550377531464,
+    "hf_avg_rouge2": 0.7606332647594699,
+    "q5_avg_rouge1": 0.7763264070778546,
+    "q5_avg_rouge2": 0.6771179760981697,
+    "q5_vs_hf_avg_rouge1": 0.8671220840216751,
+    "q5_vs_hf_avg_rouge2": 0.8324321535782406,
+    "hf_valid_format_percent": 100.0,
+    "q5_valid_format_percent": 100.0,
+    "hf_repetition_count": 0,
+    "q5_repetition_count": 0,
+    "q5_exactly_equal_to_hf_count": 0
+}

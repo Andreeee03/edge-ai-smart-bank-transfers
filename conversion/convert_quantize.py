@@ -271,6 +271,8 @@ def run_command(command, cwd=None):
         [str(part) for part in command],
         cwd=str(cwd) if cwd else None,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
