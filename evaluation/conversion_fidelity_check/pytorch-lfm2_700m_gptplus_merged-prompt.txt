@@ -1,0 +1,3 @@
+prompt: Hello, my name is
+n_tokens: 6
+token ids: 1, 36309, 521, 1727, 2154, 856
