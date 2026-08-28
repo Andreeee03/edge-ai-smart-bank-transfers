@@ -20,6 +20,9 @@ class MainActivity : FlutterActivity() {
     private external fun nativeLoadModel(modelPath: String): String
     private external fun nativeCreateContext(): String
     private external fun nativeTokenize(prompt: String): String
+    private external fun nativeDecode(prompt: String): String
+    private external fun nativeSampleFirstToken(): String
+    private external fun nativeGenerate(prompt: String): String
 
     @Volatile
     private var nativeInitStatus: String? = null
@@ -27,15 +30,17 @@ class MainActivity : FlutterActivity() {
     private fun ensureNativeInitialized(): String {
         synchronized(this) {
             if (nativeInitStatus == null) {
-                nativeInitStatus = nativeInit(
-                    applicationInfo.nativeLibraryDir
-                )
+                nativeInitStatus =
+                    nativeInit(applicationInfo.nativeLibraryDir)
             }
+
             return nativeInitStatus!!
         }
     }
 
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+    override fun configureFlutterEngine(
+        flutterEngine: FlutterEngine
+    ) {
         super.configureFlutterEngine(flutterEngine)
 
         MethodChannel(
@@ -47,17 +52,11 @@ class MainActivity : FlutterActivity() {
 
                 "ping" -> {
                     try {
-                        val init = ensureNativeInitialized()
-
                         result.success(
-                            "$init\n${nativePing()}"
+                            "${ensureNativeInitialized()}\n${nativePing()}"
                         )
                     } catch (e: Exception) {
-                        result.error(
-                            "NATIVE_ERROR",
-                            e.message,
-                            null
-                        )
+                        result.error("NATIVE_ERROR", e.message, null)
                     }
                 }
 
@@ -66,10 +65,8 @@ class MainActivity : FlutterActivity() {
                     val modelName =
                         "LFM2-700M_GPTPlus-DS_Q5_K_M.gguf"
 
-                    val modelFile = File(
-                        filesDir,
-                        "models/$modelName"
-                    )
+                    val modelFile =
+                        File(filesDir, "models/$modelName")
 
                     if (!modelFile.exists()) {
                         result.error(
@@ -77,6 +74,7 @@ class MainActivity : FlutterActivity() {
                             "Model not found: ${modelFile.absolutePath}",
                             null
                         )
+
                         return@setMethodCallHandler
                     }
 
@@ -92,9 +90,7 @@ class MainActivity : FlutterActivity() {
                             runOnUiThread {
                                 result.success(response)
                             }
-
                         } catch (e: Exception) {
-
                             runOnUiThread {
                                 result.error(
                                     "MODEL_LOAD_ERROR",
@@ -105,60 +101,83 @@ class MainActivity : FlutterActivity() {
                         }
                     }.start()
                 }
-                "createContext" -> {
-                    Thread {
-                        try {
-                            val response = nativeCreateContext()
 
-                            runOnUiThread {
-                                result.success(response)
-                            }
-                        } catch (e: Exception) {
-                            runOnUiThread {
-                                result.error(
-                                    "CONTEXT_ERROR",
-                                    e.message,
-                                    null
-                                )
-                            }
-                        }
-                    }.start()
+                "createContext" -> runNative(
+                    result,
+                    "CONTEXT_ERROR"
+                ) {
+                    nativeCreateContext()
                 }
-                "tokenize" -> {
 
+                "tokenize" -> {
                     val prompt =
                         call.argument<String>("prompt") ?: ""
 
-                    Thread {
-                        try {
-                            val response =
-                                nativeTokenize(prompt)
-
-                            runOnUiThread {
-                                result.success(response)
-                            }
-
-                        } catch (e: Exception) {
-
-                            runOnUiThread {
-                                result.error(
-                                    "TOKENIZE_ERROR",
-                                    e.message,
-                                    null
-                                )
-                            }
-                        }
-                    }.start()
+                    runNative(
+                        result,
+                        "TOKENIZE_ERROR"
+                    ) {
+                        nativeTokenize(prompt)
+                    }
                 }
 
+                "decode" -> {
+                    val prompt =
+                        call.argument<String>("prompt") ?: ""
 
+                    runNative(
+                        result,
+                        "DECODE_ERROR"
+                    ) {
+                        nativeDecode(prompt)
+                    }
+                }
 
+                "sampleFirstToken" -> runNative(
+                    result,
+                    "SAMPLING_ERROR"
+                ) {
+                    nativeSampleFirstToken()
+                }
 
+                "generate" -> {
+                    val prompt =
+                        call.argument<String>("prompt") ?: ""
+
+                    runNative(
+                        result,
+                        "GENERATION_ERROR"
+                    ) {
+                        nativeGenerate(prompt)
+                    }
+                }
 
                 else -> result.notImplemented()
             }
         }
     }
+
+    private fun runNative(
+        result: MethodChannel.Result,
+        errorCode: String,
+        action: () -> String
+    ) {
+        Thread {
+            try {
+                val response = action()
+
+                runOnUiThread {
+                    result.success(response)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    result.error(
+                        errorCode,
+                        e.message,
+                        null
+                    )
+                }
+            }
+        }.start()
+    }
 }
-
-
