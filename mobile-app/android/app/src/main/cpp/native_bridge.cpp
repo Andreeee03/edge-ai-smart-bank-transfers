@@ -1,6 +1,8 @@
 ﻿#include <jni.h>
 #include <string>
 #include <mutex>
+#include <vector>
+#include <sstream>
 #include <android/log.h>
 
 #include "llama.h"
@@ -236,5 +238,118 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeCreateConte
 
     return env->NewStringUTF(
         "Context creation OK - n_ctx=512"
+    );
+}
+
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeTokenize(
+        JNIEnv * env,
+        jobject /* this */,
+        jstring prompt) {
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (g_model == nullptr) {
+        return env->NewStringUTF(
+            "Tokenization FAILED: model not loaded"
+        );
+    }
+
+    const llama_vocab * vocab =
+        llama_model_get_vocab(g_model);
+
+    if (vocab == nullptr) {
+        return env->NewStringUTF(
+            "Tokenization FAILED: vocab unavailable"
+        );
+    }
+
+    const char * prompt_chars =
+        env->GetStringUTFChars(prompt, nullptr);
+
+    if (prompt_chars == nullptr) {
+        return env->NewStringUTF(
+            "Tokenization FAILED: invalid prompt"
+        );
+    }
+
+    std::string text(prompt_chars);
+
+    env->ReleaseStringUTFChars(
+        prompt,
+        prompt_chars
+    );
+
+    std::vector<llama_token> tokens(
+        text.size() + 16
+    );
+
+    int32_t n_tokens = llama_tokenize(
+        vocab,
+        text.c_str(),
+        static_cast<int32_t>(text.size()),
+        tokens.data(),
+        static_cast<int32_t>(tokens.size()),
+        true,
+        false
+    );
+
+    // Se il buffer era troppo piccolo,
+    // llama_tokenize restituisce la dimensione necessaria negativa.
+    if (n_tokens < 0) {
+
+        tokens.resize(-n_tokens);
+
+        n_tokens = llama_tokenize(
+            vocab,
+            text.c_str(),
+            static_cast<int32_t>(text.size()),
+            tokens.data(),
+            static_cast<int32_t>(tokens.size()),
+            true,
+            false
+        );
+    }
+
+    if (n_tokens < 0) {
+        return env->NewStringUTF(
+            "Tokenization FAILED"
+        );
+    }
+
+    tokens.resize(n_tokens);
+
+    std::ostringstream output;
+
+    output
+        << "Tokenization OK - tokens="
+        << n_tokens
+        << "\nToken IDs: ";
+
+    const size_t max_to_show = 40;
+
+    for (
+        size_t i = 0;
+        i < tokens.size() && i < max_to_show;
+        ++i
+    ) {
+        output << tokens[i];
+
+        if (
+            i + 1 < tokens.size() &&
+            i + 1 < max_to_show
+        ) {
+            output << ", ";
+        }
+    }
+
+    if (tokens.size() > max_to_show) {
+        output << ", ...";
+    }
+
+    return env->NewStringUTF(
+        output.str().c_str()
     );
 }

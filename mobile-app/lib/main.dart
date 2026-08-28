@@ -28,59 +28,28 @@ class BridgeTestPage extends StatefulWidget {
 class _BridgeTestPageState extends State<BridgeTestPage> {
   static const platform = MethodChannel('edge_ai/native');
 
+  final TextEditingController _promptController =
+      TextEditingController(
+    text: 'Test prompt\n\n',
+  );
+
   String _status = 'Ready';
   bool _busy = false;
 
-  Future<void> _testBridge() async {
-    setState(() {
-      _status = 'Testing native bridge...';
-    });
-
-    try {
-      final result = await platform.invokeMethod<String>('ping');
-
-      setState(() {
-        _status = result ?? 'No response';
-      });
-    } on PlatformException catch (e) {
-      setState(() {
-        _status = 'Error: ${e.message}';
-      });
-    }
-  }
-
-  Future<void> _loadModel() async {
+  Future<void> _call(
+    String method, [
+    Map<String, dynamic>? arguments,
+  ]) async {
     setState(() {
       _busy = true;
-      _status = 'Loading Q5 model...';
+      _status = 'Working...';
     });
 
     try {
-      final result = await platform.invokeMethod<String>('loadModel');
-
-      setState(() {
-        _status = result ?? 'No response';
-      });
-    } on PlatformException catch (e) {
-      setState(() {
-        _status = 'Error: ${e.message}';
-      });
-    } finally {
-      setState(() {
-        _busy = false;
-      });
-    }
-  }
-
-  Future<void> _createContext() async {
-    setState(() {
-      _busy = true;
-      _status = 'Creating llama context...';
-    });
-
-    try {
-      final result =
-          await platform.invokeMethod<String>('createContext');
+      final result = await platform.invokeMethod<String>(
+        method,
+        arguments,
+      );
 
       setState(() {
         _status = result ?? 'No response';
@@ -97,29 +66,59 @@ class _BridgeTestPageState extends State<BridgeTestPage> {
   }
 
   @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edge AI Smart Bank Transfers'),
+        title: const Text(
+          'Edge AI Smart Bank Transfers',
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ElevatedButton(
-              onPressed: _busy ? null : _testBridge,
+              onPressed: _busy ? null : () => _call('ping'),
               child: const Text('Test native bridge'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _busy ? null : _loadModel,
+              onPressed: _busy ? null : () => _call('loadModel'),
               child: const Text('Load Q5 model'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _busy ? null : _createContext,
+              onPressed:
+                  _busy ? null : () => _call('createContext'),
               child: const Text('Create context'),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _promptController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Tokenizer test prompt',
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _busy
+                  ? null
+                  : () => _call(
+                        'tokenize',
+                        {
+                          'prompt': _promptController.text,
+                        },
+                      ),
+              child: const Text('Tokenize prompt'),
             ),
             const SizedBox(height: 24),
             const Text(

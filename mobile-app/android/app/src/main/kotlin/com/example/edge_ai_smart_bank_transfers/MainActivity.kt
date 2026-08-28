@@ -19,6 +19,7 @@ class MainActivity : FlutterActivity() {
     private external fun nativePing(): String
     private external fun nativeLoadModel(modelPath: String): String
     private external fun nativeCreateContext(): String
+    private external fun nativeTokenize(prompt: String): String
 
     @Volatile
     private var nativeInitStatus: String? = null
@@ -123,6 +124,34 @@ class MainActivity : FlutterActivity() {
                         }
                     }.start()
                 }
+                "tokenize" -> {
+
+                    val prompt =
+                        call.argument<String>("prompt") ?: ""
+
+                    Thread {
+                        try {
+                            val response =
+                                nativeTokenize(prompt)
+
+                            runOnUiThread {
+                                result.success(response)
+                            }
+
+                        } catch (e: Exception) {
+
+                            runOnUiThread {
+                                result.error(
+                                    "TOKENIZE_ERROR",
+                                    e.message,
+                                    null
+                                )
+                            }
+                        }
+                    }.start()
+                }
+
+
 
 
 
@@ -131,4 +160,5 @@ class MainActivity : FlutterActivity() {
         }
     }
 }
+
 
