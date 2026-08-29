@@ -21,8 +21,7 @@ class EdgeAiApp extends StatelessWidget {
   }
 }
 
-enum ActivityType {
-  generation,
+enum TextAssistMode {
   completion,
   normalization,
 }
@@ -37,31 +36,44 @@ class TransferPage extends StatefulWidget {
 class _TransferPageState extends State<TransferPage> {
   static const platform = MethodChannel('edge_ai/native');
 
-  ActivityType _activity = ActivityType.generation;
-
-  final _ibanController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _beneficiaryController = TextEditingController();
+  final _ibanController = TextEditingController();
+
   final _amountController = TextEditingController();
-  final _currencyController = TextEditingController(text: 'EUR');
+  final _currencyController = TextEditingController(
+    text: 'EUR',
+  );
+
+  final _categoryController = TextEditingController();
   final _referencePeriodController = TextEditingController();
-  final _inputTextController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
   final _suggestion1Controller = TextEditingController();
   final _suggestion2Controller = TextEditingController();
 
-  // Sempre disponibile anche senza AI.
-  final _finalDescriptionController = TextEditingController();
+  final _finalDescriptionController =
+      TextEditingController();
+
+  TextAssistMode _textAssistMode =
+      TextAssistMode.completion;
 
   bool _busy = false;
   bool _aiReady = false;
+  bool _aiInitializing = false;
+  Future<void>? _aiInitFuture;
 
   String _status = 'Ready';
 
-  String _clean(String value) => value.trim();
+  bool get _hasDescription =>
+      _descriptionController.text.trim().isNotEmpty;
+
+  String _clean(String value) {
+    return value.trim();
+  }
 
   String _formatAmount(String value) {
-    final normalized = value.trim().replaceAll(',', '.');
+    final normalized =
+        value.trim().replaceAll(',', '.');
 
     final parsed = double.tryParse(normalized);
 
@@ -76,9 +88,6 @@ class _TransferPageState extends State<TransferPage> {
   }
 
   String _buildPrompt() {
-    final category =
-        _clean(_categoryController.text).toUpperCase();
-
     final beneficiary =
         _clean(_beneficiaryController.text);
 
@@ -88,60 +97,79 @@ class _TransferPageState extends State<TransferPage> {
     final currency =
         _clean(_currencyController.text).toUpperCase();
 
+    final category =
+        _clean(_categoryController.text).toUpperCase();
+
     final referencePeriod =
         _clean(_referencePeriodController.text);
 
-    final inputText =
-        _clean(_inputTextController.text);
+    final description =
+        _clean(_descriptionController.text);
 
     final parts = <String>[];
 
-    switch (_activity) {
-      case ActivityType.generation:
-        parts.add(
-          'Generate exactly two concise and natural '
-          'bank-transfer descriptions using only the '
-          'information provided.',
-        );
+    /*
+     * DESCRIPTION EMPTY
+     * =================
+     * Automatic GENERATION.
+     */
+    if (description.isEmpty) {
+      parts.add(
+        'Generate exactly two concise and natural '
+        'bank-transfer descriptions using only the '
+        'information provided.',
+      );
 
-        parts.add(
-          'Return two alternative descriptions without '
-          'adding unsupported information.',
-        );
-
-        break;
-
-      case ActivityType.completion:
-        parts.add(
-          'Complete the following partially written '
-          'bank-transfer description.',
-        );
-
-        parts.add(
-          'Generate exactly two concise and natural '
-          'completed alternatives using only the '
-          'information provided.',
-        );
-
-        break;
-
-      case ActivityType.normalization:
-        parts.add(
-          'Normalize the following bank-transfer '
-          'description by making it clear, concise '
-          'and natural.',
-        );
-
-        parts.add(
-          'Generate exactly two alternative normalized '
-          'descriptions while preserving the original '
-          'meaning and without adding unsupported '
-          'information.',
-        );
-
-        break;
+      parts.add(
+        'Return two alternative descriptions without '
+        'adding unsupported information.',
+      );
     }
 
+    /*
+     * DESCRIPTION PRESENT + COMPLETE
+     * ==============================
+     * COMPLETION.
+     */
+    else if (_textAssistMode ==
+        TextAssistMode.completion) {
+      parts.add(
+        'Complete the following partially written '
+        'bank-transfer description.',
+      );
+
+      parts.add(
+        'Generate exactly two concise and natural '
+        'completed alternatives using only the '
+        'information provided.',
+      );
+    }
+
+    /*
+     * DESCRIPTION PRESENT + NORMALIZE
+     * ===============================
+     * NORMALIZATION.
+     */
+    else {
+      parts.add(
+        'Normalize the following bank-transfer '
+        'description by making it clear, concise '
+        'and natural.',
+      );
+
+      parts.add(
+        'Generate exactly two alternative normalized '
+        'descriptions while preserving the original '
+        'meaning and without adding unsupported '
+        'information.',
+      );
+    }
+
+    /*
+     * Exact field order used by the SFT prompts.
+     *
+     * IBAN is deliberately NOT included.
+     */
     parts.add('Category: $category');
     parts.add('Beneficiary: $beneficiary');
     parts.add('Amount: $amount $currency');
@@ -152,26 +180,22 @@ class _TransferPageState extends State<TransferPage> {
       );
     }
 
-    if (_activity == ActivityType.completion) {
-      parts.add(
-        'Partial description: $inputText',
-      );
-    }
-
-    if (_activity == ActivityType.normalization) {
-      parts.add(
-        'Original description: $inputText',
-      );
+    if (description.isNotEmpty) {
+      if (_textAssistMode ==
+          TextAssistMode.completion) {
+        parts.add(
+          'Partial description: $description',
+        );
+      } else {
+        parts.add(
+          'Original description: $description',
+        );
+      }
     }
 
     /*
-     * IMPORTANT:
+     * Exact inference boundary used in training:
      *
-     * IBAN NON viene inserito nel prompt.
-     *
-     * Il modello non lo ha visto durante il fine-tuning.
-     *
-     * Boundary identico al training:
      * prompt.rstrip("\r\n") + "\n\n"
      */
     final prompt =
@@ -184,10 +208,6 @@ class _TransferPageState extends State<TransferPage> {
   }
 
   String? _validateForm() {
-    if (_categoryController.text.trim().isEmpty) {
-      return 'Insert the operation category.';
-    }
-
     if (_beneficiaryController.text.trim().isEmpty) {
       return 'Insert the beneficiary.';
     }
@@ -200,15 +220,67 @@ class _TransferPageState extends State<TransferPage> {
       return 'Insert the currency.';
     }
 
-    if ((_activity == ActivityType.completion ||
-            _activity == ActivityType.normalization) &&
-        _inputTextController.text.trim().isEmpty) {
-      return _activity == ActivityType.completion
-          ? 'Insert the partial description.'
-          : 'Insert the description to normalize.';
+    if (_categoryController.text.trim().isEmpty) {
+      return 'Insert the operation category.';
     }
 
     return null;
+  }
+
+  Future<void> _initializeAi() async {
+    if (_aiReady) {
+      return;
+    }
+
+    setState(() {
+      _aiInitializing = true;
+      _status = 'Loading local AI model...';
+    });
+
+    try {
+      await platform.invokeMethod<String>(
+        'loadModel',
+      );
+
+      if (mounted) {
+        setState(() {
+          _status = 'Preparing local inference...';
+        });
+      }
+
+      await platform.invokeMethod<String>(
+        'createContext',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _aiReady = true;
+        _status = 'Local AI ready';
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _aiReady = false;
+        _status =
+            'AI unavailable. Manual description is still available.';
+      });
+
+      debugPrint(
+        'AI initialization error: ${e.code}',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _aiInitializing = false;
+        });
+      }
+    }
   }
 
   Future<void> _ensureAiReady() async {
@@ -216,23 +288,16 @@ class _TransferPageState extends State<TransferPage> {
       return;
     }
 
-    setState(() {
-      _status = 'Loading local AI model...';
-    });
+    _aiInitFuture ??= _initializeAi();
 
-    await platform.invokeMethod<String>(
-      'loadModel',
-    );
+    await _aiInitFuture;
 
-    setState(() {
-      _status = 'Preparing local inference...';
-    });
-
-    await platform.invokeMethod<String>(
-      'createContext',
-    );
-
-    _aiReady = true;
+    if (!_aiReady) {
+      throw PlatformException(
+        code: 'AI_NOT_READY',
+        message: 'Local AI model is not available.',
+      );
+    }
   }
 
   String _extractModelText(String raw) {
@@ -255,16 +320,16 @@ class _TransferPageState extends State<TransferPage> {
     String? first;
     String? second;
 
-    final lines = output.split('\n');
-
-    for (final line in lines) {
+    for (final line in output.split('\n')) {
       final trimmed = line.trim();
 
       final firstMatch =
-          RegExp(r'^1\.\s*(.+)$').firstMatch(trimmed);
+          RegExp(r'^1\.\s*(.+)$')
+              .firstMatch(trimmed);
 
       final secondMatch =
-          RegExp(r'^2\.\s*(.+)$').firstMatch(trimmed);
+          RegExp(r'^2\.\s*(.+)$')
+              .firstMatch(trimmed);
 
       if (firstMatch != null) {
         first = firstMatch.group(1)?.trim();
@@ -296,10 +361,11 @@ class _TransferPageState extends State<TransferPage> {
 
     setState(() {
       _busy = true;
-      _status = 'Preparing generation...';
 
       _suggestion1Controller.clear();
       _suggestion2Controller.clear();
+
+      _status = 'Preparing generation...';
     });
 
     try {
@@ -320,11 +386,11 @@ class _TransferPageState extends State<TransferPage> {
         },
       );
 
-      final modelText =
+      final text =
           _extractModelText(result ?? '');
 
       final suggestions =
-          _parseSuggestions(modelText);
+          _parseSuggestions(text);
 
       if (suggestions.length < 2) {
         setState(() {
@@ -383,32 +449,29 @@ class _TransferPageState extends State<TransferPage> {
     });
   }
 
-  String _activityLabel(
-    ActivityType value,
-  ) {
-    switch (value) {
-      case ActivityType.generation:
-        return 'Generation';
+  @override
+  void initState() {
+    super.initState();
 
-      case ActivityType.completion:
-        return 'Completion';
-
-      case ActivityType.normalization:
-        return 'Normalization';
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _aiInitFuture ??= _initializeAi();
+    });
   }
-
   @override
   void dispose() {
-    _ibanController.dispose();
-    _categoryController.dispose();
     _beneficiaryController.dispose();
+    _ibanController.dispose();
+
     _amountController.dispose();
     _currencyController.dispose();
+
+    _categoryController.dispose();
     _referencePeriodController.dispose();
-    _inputTextController.dispose();
+    _descriptionController.dispose();
+
     _suggestion1Controller.dispose();
     _suggestion2Controller.dispose();
+
     _finalDescriptionController.dispose();
 
     super.dispose();
@@ -416,10 +479,6 @@ class _TransferPageState extends State<TransferPage> {
 
   @override
   Widget build(BuildContext context) {
-    final needsInputText =
-        _activity == ActivityType.completion ||
-        _activity == ActivityType.normalization;
-
     final hasSuggestions =
         _suggestion1Controller.text.isNotEmpty ||
         _suggestion2Controller.text.isNotEmpty;
@@ -442,14 +501,12 @@ class _TransferPageState extends State<TransferPage> {
                     const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.smartphone,
-                    ),
+                    const Icon(Icons.smartphone),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'On-device AI • '
-                        'Your transfer data is processed locally',
+                        'Transfer data is processed locally',
                         style:
                             Theme.of(context)
                                 .textTheme
@@ -463,73 +520,9 @@ class _TransferPageState extends State<TransferPage> {
 
             const SizedBox(height: 16),
 
-            TextField(
-              controller: _ibanController,
-              decoration:
-                  const InputDecoration(
-                labelText: 'IBAN',
-                helperText:
-                    'Transfer field — not sent to the AI model',
-                border:
-                    OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<ActivityType>(
-              initialValue: _activity,
-              decoration:
-                  const InputDecoration(
-                labelText: 'AI assistance',
-                border:
-                    OutlineInputBorder(),
-              ),
-              items: ActivityType.values
-                  .map(
-                    (activity) =>
-                        DropdownMenuItem(
-                      value: activity,
-                      child: Text(
-                        _activityLabel(
-                          activity,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: _busy
-                  ? null
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          _activity = value;
-
-                          _suggestion1Controller
-                              .clear();
-
-                          _suggestion2Controller
-                              .clear();
-                        });
-                      }
-                    },
-            ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller:
-                  _categoryController,
-              decoration:
-                  const InputDecoration(
-                labelText: 'Category',
-                border:
-                    OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
+            /*
+             * 1. BENEFICIARY
+             */
             TextField(
               controller:
                   _beneficiaryController,
@@ -543,6 +536,27 @@ class _TransferPageState extends State<TransferPage> {
 
             const SizedBox(height: 16),
 
+            /*
+             * 2. IBAN
+             */
+            TextField(
+              controller:
+                  _ibanController,
+              decoration:
+                  const InputDecoration(
+                labelText: 'IBAN',
+                helperText:
+                    'Not used by the AI model',
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            /*
+             * 3. AMOUNT + CURRENCY
+             */
             Row(
               children: [
                 Expanded(
@@ -583,6 +597,25 @@ class _TransferPageState extends State<TransferPage> {
 
             const SizedBox(height: 16),
 
+            /*
+             * 4. CATEGORY
+             */
+            TextField(
+              controller:
+                  _categoryController,
+              decoration:
+                  const InputDecoration(
+                labelText: 'Category',
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            /*
+             * 5. REFERENCE PERIOD
+             */
             TextField(
               controller:
                   _referencePeriodController,
@@ -595,24 +628,76 @@ class _TransferPageState extends State<TransferPage> {
               ),
             ),
 
-            if (needsInputText) ...[
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-              TextField(
-                controller:
-                    _inputTextController,
-                maxLines: 3,
-                decoration:
-                    InputDecoration(
-                  labelText:
-                      _activity ==
-                              ActivityType
-                                  .completion
-                          ? 'Partial description'
-                          : 'Original description',
-                  border:
-                      const OutlineInputBorder(),
-                ),
+            /*
+             * 6. DESCRIPTION
+             *
+             * Empty = Generation
+             * Text  = Completion / Normalization
+             */
+            TextField(
+              controller:
+                  _descriptionController,
+              maxLines: 3,
+              onChanged: (_) {
+                setState(() {});
+              },
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Description (optional)',
+                helperText:
+                    'Leave empty to generate a new description',
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+
+            /*
+             * Only shown when the user entered
+             * an existing description.
+             */
+            if (_hasDescription) ...[
+              const SizedBox(height: 14),
+
+              const Text(
+                'What should the AI do with your description?',
+              ),
+
+              const SizedBox(height: 8),
+
+              SegmentedButton<TextAssistMode>(
+                segments: const [
+                  ButtonSegment(
+                    value:
+                        TextAssistMode.completion,
+                    label:
+                        Text('Complete'),
+                    icon:
+                        Icon(Icons.edit),
+                  ),
+                  ButtonSegment(
+                    value:
+                        TextAssistMode.normalization,
+                    label:
+                        Text('Normalize'),
+                    icon:
+                        Icon(Icons.auto_fix_high),
+                  ),
+                ],
+                selected: {
+                  _textAssistMode,
+                },
+                onSelectionChanged:
+                    _busy
+                        ? null
+                        : (selection) {
+                            setState(() {
+                              _textAssistMode =
+                                  selection.first;
+                            });
+                          },
               ),
             ],
 
@@ -620,8 +705,9 @@ class _TransferPageState extends State<TransferPage> {
 
             FilledButton.icon(
               onPressed:
-                  _busy ? null : _generate,
-              icon: const Icon(
+                  (_busy || _aiInitializing) ? null : _generate,
+              icon:
+                  const Icon(
                 Icons.auto_awesome,
               ),
               label: Text(
@@ -642,9 +728,10 @@ class _TransferPageState extends State<TransferPage> {
 
             Text(
               _status,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall,
+              style:
+                  Theme.of(context)
+                      .textTheme
+                      .bodySmall,
             ),
 
             if (_suggestion1Controller
@@ -782,3 +869,6 @@ class _TransferPageState extends State<TransferPage> {
     );
   }
 }
+
+
+
