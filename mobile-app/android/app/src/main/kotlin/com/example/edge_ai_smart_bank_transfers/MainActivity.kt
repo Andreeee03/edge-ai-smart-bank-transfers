@@ -76,7 +76,7 @@ class MainActivity : FlutterActivity() {
                 "loadModel" -> {
 
                     val modelName =
-                        "LFM2-700M_GPTPlus-DS_Q5_K_M.gguf"
+                        "LFM2-700M_Claude-DS_Q5_K_M.gguf"
 
                     val modelFile =
                         File(
