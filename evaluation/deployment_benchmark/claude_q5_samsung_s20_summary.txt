@@ -1,0 +1,69 @@
+LFM2-700M Claude-DS Q5_K_M - Samsung deployment benchmark
+===================================================================
+
+Runs: 30
+Successful: 30
+Failed: 0
+Model size: 538029440 bytes
+Device: Samsung SM-G780F
+SoC: Samsung Exynos 990
+Android: 13 (API 33)
+RAM reported by Android: 5590960 kB
+
+Process-start model load observed: 2419.665 ms
+Context creation observed: 20.698 ms
+
+Total inference latency (ms)
+  Mean:   1193.241
+  Median: 1100.745
+  P95:    1523.702
+  Min:    939.285
+  Max:    1542.290
+  StdDev: 203.397
+
+Prompt decode latency (ms)
+  Mean:   622.773
+  Median: 555.890
+  P95:    804.122
+  Min:    499.630
+  Max:    844.560
+  StdDev: 118.853
+
+Generation latency (ms)
+  Mean:   569.750
+  Median: 545.135
+  P95:    726.307
+  Min:    418.553
+  Max:    732.306
+  StdDev: 92.677
+
+Generation throughput (tok/s)
+  Mean:   36.039
+  Median: 36.116
+  P95:    38.043
+  Min:    30.067
+  Max:    38.761
+  StdDev: 1.505
+
+Generated tokens
+  Mean:   20.500
+  Median: 19.500
+  P95:    26.000
+  Min:    16.000
+  Max:    26.000
+  StdDev: 3.256
+
+Memory benchmark
+  Final VmRSS: 1412280 kB
+  Final VmRSS: 1379.180 MiB
+  Final VmRSS: 1.347 GiB
+  Peak VmHWM: 1491808 kB
+  Peak VmHWM: 1456.844 MiB
+  Peak VmHWM: 1.423 GiB
+  Consecutive runs: 30
+  Successful runs: 30
+  Failed runs: 0
+  OOM events: 0
+
+Memory benchmark process-start model load: 2658.462 ms
+Memory benchmark context creation: 8.348 ms
