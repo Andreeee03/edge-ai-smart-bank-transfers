@@ -206,28 +206,214 @@ class _TransferPageState extends State<TransferPage> {
     return '${event['id']}_${event['startMillis']}';
   }
 
-  String _formatCalendarDate(dynamic value) {
+  String _calendarMonthShort(int month) {
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+
+    return months[month - 1];
+  }
+
+  String _calendarMonthLong(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    return months[month - 1];
+  }
+
+  String _calendarWeekday(int weekday) {
+    const weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
+    return weekdays[weekday - 1];
+  }
+
+  DateTime? _calendarDateTime(dynamic value) {
     final millis = value is int ? value : int.tryParse(value.toString());
 
     if (millis == null) {
+      return null;
+    }
+
+    return DateTime.fromMillisecondsSinceEpoch(millis).toLocal();
+  }
+
+  String _formatCalendarDateLong(dynamic value) {
+    final date = _calendarDateTime(value);
+
+    if (date == null) {
       return 'Unknown date';
     }
 
-    final date = DateTime.fromMillisecondsSinceEpoch(millis).toLocal();
-
-    String twoDigits(int value) => value.toString().padLeft(2, '0');
-
-    return '${date.year}-'
-        '${twoDigits(date.month)}-'
-        '${twoDigits(date.day)}';
+    return '${_calendarWeekday(date.weekday)}, '
+        '${date.day} '
+        '${_calendarMonthLong(date.month)} '
+        '${date.year}';
   }
 
-  String _calendarEventLabel(Map<String, dynamic> event) {
-    final title = (event['title'] ?? 'Untitled event').toString();
+  Future<void> _showCalendarEventPicker() async {
+    if (_calendarEvents.isEmpty) {
+      return;
+    }
 
-    final date = _formatCalendarDate(event['startMillis']);
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final height = MediaQuery.of(sheetContext).size.height * 0.72;
 
-    return '$title ? $date';
+        return SafeArea(
+          child: SizedBox(
+            height: height,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Choose calendar event',
+                        style: Theme.of(sheetContext).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Only the selected event is used '
+                        'locally by the on-device AI.',
+                        style: Theme.of(sheetContext).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 1),
+
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _calendarEvents.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, indent: 92),
+                    itemBuilder: (context, index) {
+                      final event = _calendarEvents[index];
+
+                      final date = _calendarDateTime(event['startMillis']);
+
+                      final title = (event['title'] ?? 'Untitled event')
+                          .toString();
+
+                      final isSelected =
+                          _selectedCalendarEvent != null &&
+                          _calendarEventKey(_selectedCalendarEvent!) ==
+                              _calendarEventKey(event);
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 6,
+                        ),
+
+                        leading: Container(
+                          width: 56,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: date == null
+                              ? const Icon(Icons.event)
+                              : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      date.day.toString().padLeft(2, '0'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    Text(
+                                      _calendarMonthShort(date.month),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall,
+                                    ),
+                                  ],
+                                ),
+                        ),
+
+                        title: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        subtitle: Text(
+                          _formatCalendarDateLong(event['startMillis']),
+                        ),
+
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle)
+                            : const Icon(Icons.chevron_right),
+
+                        onTap: () {
+                          Navigator.of(sheetContext).pop(event);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedCalendarEvent = selected;
+      _status = 'Calendar event selected';
+    });
   }
 
   Future<void> _setCalendarContext(bool enabled) async {
@@ -710,10 +896,11 @@ class _TransferPageState extends State<TransferPage> {
                     children: [
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
+                        secondary: const Icon(Icons.calendar_month),
                         title: const Text('Use calendar context'),
                         subtitle: const Text(
-                          'Optional. Only the selected event '
-                          'is used locally on this device.',
+                          'Optional. Select one event to '
+                          'provide additional context.',
                         ),
                         value: _useCalendarContext,
                         onChanged: (_busy || _calendarLoading)
@@ -738,53 +925,48 @@ class _TransferPageState extends State<TransferPage> {
                             'No calendar events found '
                             'in the selected time range.',
                           )
-                        else
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: _selectedCalendarEvent == null
-                                ? null
-                                : _calendarEventKey(_selectedCalendarEvent!),
-                            decoration: const InputDecoration(
-                              labelText: 'Calendar event',
-                              border: OutlineInputBorder(),
+                        else if (_selectedCalendarEvent == null)
+                          OutlinedButton.icon(
+                            onPressed: _busy ? null : _showCalendarEventPicker,
+                            icon: const Icon(Icons.event),
+                            label: const Text('Choose calendar event'),
+                          )
+                        else ...[
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            hint: const Text('Select an event'),
-                            items: _calendarEvents.map((event) {
-                              return DropdownMenuItem<String>(
-                                value: _calendarEventKey(event),
-                                child: Text(
-                                  _calendarEventLabel(event),
-                                  overflow: TextOverflow.ellipsis,
+                            child: ListTile(
+                              leading: const Icon(Icons.event_available),
+                              title: Text(
+                                (_selectedCalendarEvent!['title'] ??
+                                        'Untitled event')
+                                    .toString(),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                _formatCalendarDateLong(
+                                  _selectedCalendarEvent!['startMillis'],
                                 ),
-                              );
-                            }).toList(),
-                            onChanged: _busy
-                                ? null
-                                : (key) {
-                                    if (key == null) {
-                                      return;
-                                    }
-
-                                    final event = _calendarEvents.firstWhere(
-                                      (item) => _calendarEventKey(item) == key,
-                                    );
-
-                                    setState(() {
-                                      _selectedCalendarEvent = event;
-
-                                      _status = 'Calendar event selected';
-                                    });
-                                  },
+                              ),
+                            ),
                           ),
 
-                        if (_selectedCalendarEvent != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            'Selected: '
-                            '${_selectedCalendarEvent!['title']}'
-                            ' ? '
-                            '${_formatCalendarDate(_selectedCalendarEvent!['startMillis'])}',
-                            style: Theme.of(context).textTheme.bodySmall,
+                          const SizedBox(height: 6),
+
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: _busy
+                                  ? null
+                                  : _showCalendarEventPicker,
+                              icon: const Icon(Icons.swap_horiz),
+                              label: const Text('Change event'),
+                            ),
                           ),
                         ],
                       ],
