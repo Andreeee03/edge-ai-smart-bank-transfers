@@ -225,10 +225,6 @@ class _TransferPageState extends State<TransferPage> {
     return null;
   }
 
-  String _calendarEventKey(Map<String, dynamic> event) {
-    return '${event['id']}_${event['startMillis']}';
-  }
-
   String _calendarMonthShort(int month) {
     const months = [
       'JAN',
@@ -304,127 +300,411 @@ class _TransferPageState extends State<TransferPage> {
         '${date.year}';
   }
 
+  int? _calendarMonthNumber(String value) {
+    const months = {
+      'january': 1,
+      'jan': 1,
+      'february': 2,
+      'feb': 2,
+      'march': 3,
+      'mar': 3,
+      'april': 4,
+      'apr': 4,
+      'may': 5,
+      'june': 6,
+      'jun': 6,
+      'july': 7,
+      'jul': 7,
+      'august': 8,
+      'aug': 8,
+      'september': 9,
+      'sep': 9,
+      'sept': 9,
+      'october': 10,
+      'oct': 10,
+      'november': 11,
+      'nov': 11,
+      'december': 12,
+      'dec': 12,
+    };
+
+    return months[value.trim().toLowerCase()];
+  }
+
+  DateTime? _calendarEventDateOnly(Map<String, dynamic> event) {
+    final value = event['startMillis'];
+
+    final millis = value is int ? value : int.tryParse(value.toString());
+
+    if (millis == null) {
+      return null;
+    }
+
+    final allDay = event['allDay'] == true;
+
+    final raw = DateTime.fromMillisecondsSinceEpoch(millis, isUtc: allDay);
+
+    final date = allDay ? raw : raw.toLocal();
+
+    return DateTime(date.year, date.month, date.day);
+  }
+
   Future<void> _showCalendarEventPicker() async {
     if (_calendarEvents.isEmpty) {
       return;
     }
+
+    final now = DateTime.now();
+
+    final reference = _referencePeriodController.text.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+
+    DateTime? exactDate;
+    int? selectedMonth;
+    int? selectedYear;
+
+    /*
+     * Exact date: YYYY-MM-DD
+     */
+    final isoMatch = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$')
+        .firstMatch(reference);
+
+    if (isoMatch != null) {
+      exactDate = DateTime(
+        int.parse(isoMatch.group(1)!),
+        int.parse(isoMatch.group(2)!),
+        int.parse(isoMatch.group(3)!),
+      );
+    }
+
+    /*
+     * Exact date: DD/MM/YYYY
+     */
+    if (exactDate == null) {
+      final numericMatch = RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$')
+          .firstMatch(reference);
+
+      if (numericMatch != null) {
+        exactDate = DateTime(
+          int.parse(numericMatch.group(3)!),
+          int.parse(numericMatch.group(2)!),
+          int.parse(numericMatch.group(1)!),
+        );
+      }
+    }
+
+    /*
+     * Exact date: 30 September 2026
+     */
+    if (exactDate == null) {
+      final dateWords = RegExp(
+        r'^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$',
+        caseSensitive: false,
+      ).firstMatch(reference);
+
+      if (dateWords != null) {
+        final month = _calendarMonthNumber(dateWords.group(2)!);
+
+        if (month != null) {
+          exactDate = DateTime(
+            int.parse(dateWords.group(3)!),
+            month,
+            int.parse(dateWords.group(1)!),
+          );
+        }
+      }
+    }
+
+    /*
+     * Exact date without year:
+     * 30 September
+     * -> current year
+     */
+    if (exactDate == null) {
+      final dateWithoutYear = RegExp(
+        r'^(\d{1,2})\s+([A-Za-z]+)$',
+        caseSensitive: false,
+      ).firstMatch(reference);
+
+      if (dateWithoutYear != null) {
+        final month = _calendarMonthNumber(dateWithoutYear.group(2)!);
+
+        if (month != null) {
+          exactDate = DateTime(
+            now.year,
+            month,
+            int.parse(dateWithoutYear.group(1)!),
+          );
+        }
+      }
+    }
+
+    /*
+     * Month + year: September 2026
+     */
+    if (exactDate == null) {
+      final monthYear = RegExp(
+        r'^([A-Za-z]+)\s+(\d{4})$',
+        caseSensitive: false,
+      ).firstMatch(reference);
+
+      if (monthYear != null) {
+        final month = _calendarMonthNumber(monthYear.group(1)!);
+
+        if (month != null) {
+          selectedMonth = month;
+          selectedYear = int.parse(monthYear.group(2)!);
+        }
+      }
+    }
+
+    /*
+     * Month only: September
+     * -> current year
+     */
+    if (exactDate == null && selectedMonth == null) {
+      final month = _calendarMonthNumber(reference);
+
+      if (month != null) {
+        selectedMonth = month;
+        selectedYear = now.year;
+      }
+    }
+
+    /*
+     * Builds the filtered event list.
+     */
+    final filteredEvents = _calendarEvents.where((event) {
+      final eventDate = _calendarEventDateOnly(event);
+
+      if (eventDate == null) {
+        return false;
+      }
+
+      /*
+       * Precise date -> +/- 3 days
+       */
+      if (exactDate != null) {
+        final target = DateTime(exactDate.year, exactDate.month, exactDate.day);
+
+        final difference = eventDate.difference(target).inDays.abs();
+
+        return difference <= 3;
+      }
+
+      /*
+       * Month / month + year
+       */
+      if (selectedMonth != null && selectedYear != null) {
+        return eventDate.month == selectedMonth &&
+            eventDate.year == selectedYear;
+      }
+
+      /*
+       * Nothing usable in Reference period
+       * -> +/- 7 days from today
+       */
+      final today = DateTime(now.year, now.month, now.day);
+
+      return eventDate.difference(today).inDays.abs() <= 7;
+    }).toList();
+
+    filteredEvents.sort((a, b) {
+      final first = _calendarEventDateOnly(a);
+      final second = _calendarEventDateOnly(b);
+
+      if (first == null) return 1;
+      if (second == null) return -1;
+
+      return first.compareTo(second);
+    });
+
+    /*
+     * Human-readable filter title.
+     */
+    String filterTitle;
+
+    if (exactDate != null) {
+      filterTitle =
+          'Events around '
+          '${exactDate.day} '
+          '${_calendarMonthLong(exactDate.month)} '
+          '${exactDate.year}';
+    } else if (selectedMonth != null && selectedYear != null) {
+      filterTitle =
+          'Events for '
+          '${_calendarMonthLong(selectedMonth)} '
+          '$selectedYear';
+    } else {
+      filterTitle = 'Events near today';
+    }
+
+    bool showAll = false;
 
     final selected = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
-        final height = MediaQuery.of(sheetContext).size.height * 0.72;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final visibleEvents = showAll ? _calendarEvents : filteredEvents;
 
-        return SafeArea(
-          child: SizedBox(
-            height: height,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Choose calendar event',
-                        style: Theme.of(sheetContext).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Only the selected event is used '
-                        'locally by the on-device AI.',
-                        style: Theme.of(sheetContext).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const Divider(height: 1),
-
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _calendarEvents.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, indent: 92),
-                    itemBuilder: (context, index) {
-                      final event = _calendarEvents[index];
-
-                      final date = _calendarDateTime(event['startMillis']);
-
-                      final title = (event['title'] ?? 'Untitled event')
-                          .toString();
-
-                      final isSelected =
-                          _selectedCalendarEvent != null &&
-                          _calendarEventKey(_selectedCalendarEvent!) ==
-                              _calendarEventKey(event);
-
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 6,
-                        ),
-
-                        leading: Container(
-                          width: 56,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(12),
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(sheetContext).size.height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Choose calendar event',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          child: date == null
-                              ? const Icon(Icons.event)
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      date.day.toString().padLeft(2, '0'),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                    Text(
-                                      _calendarMonthShort(date.month),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall,
-                                    ),
-                                  ],
+
+                          const SizedBox(height: 6),
+
+                          Text(
+                            showAll ? 'All calendar events' : filterTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          Text(
+                            'Only the event you select '
+                            'will be used locally by '
+                            'the on-device AI.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 1),
+
+                    Expanded(
+                      child: visibleEvents.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  'No events found '
+                                  'for this period.',
+                                  textAlign: TextAlign.center,
                                 ),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: visibleEvents.length,
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1, indent: 92),
+                              itemBuilder: (context, index) {
+                                final event = visibleEvents[index];
+
+                                final date = _calendarDateTime(
+                                  event['startMillis'],
+                                );
+
+                                final title =
+                                    (event['title'] ?? 'Untitled event')
+                                        .toString();
+
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 6,
+                                  ),
+
+                                  leading: Container(
+                                    width: 56,
+                                    height: 58,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: date == null
+                                        ? const Icon(Icons.event)
+                                        : Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                date.day.toString().padLeft(
+                                                  2,
+                                                  '0',
+                                                ),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Text(
+                                                _calendarMonthShort(date.month),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+
+                                  title: Text(
+                                    title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+
+                                  subtitle: Text(
+                                    _formatCalendarDateLong(
+                                      event['startMillis'],
+                                    ),
+                                  ),
+
+                                  trailing: const Icon(Icons.chevron_right),
+
+                                  onTap: () {
+                                    Navigator.of(sheetContext).pop(event);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+
+                    /*
+                     * Always allow access to the
+                     * events excluded by the filter.
+                     */
+                    if (_calendarEvents.length != filteredEvents.length)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setSheetState(() {
+                              showAll = !showAll;
+                            });
+                          },
+                          icon: Icon(
+                            showAll
+                                ? Icons.filter_alt
+                                : Icons.calendar_view_month,
+                          ),
+                          label: Text(
+                            showAll
+                                ? 'Show events for this period'
+                                : 'Show other events',
+                          ),
                         ),
-
-                        title: Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-
-                        subtitle: Text(
-                          _formatCalendarDateLong(event['startMillis']),
-                        ),
-
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle)
-                            : const Icon(Icons.chevron_right),
-
-                        onTap: () {
-                          Navigator.of(sheetContext).pop(event);
-                        },
-                      );
-                    },
-                  ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -435,6 +715,7 @@ class _TransferPageState extends State<TransferPage> {
 
     setState(() {
       _selectedCalendarEvent = selected;
+
       _status = 'Calendar event selected';
     });
   }
@@ -609,6 +890,15 @@ class _TransferPageState extends State<TransferPage> {
     return 'Event';
   }
 
+  bool _isHolidayCalendar(Map<String, dynamic> event) {
+    final calendarName = (event['calendarName'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    return calendarName.contains('holiday');
+  }
+
   Future<void> _setCalendarContext(bool enabled) async {
     if (!enabled) {
       setState(() {
@@ -675,6 +965,7 @@ class _TransferPageState extends State<TransferPage> {
           .whereType<Map>()
           .map((event) => Map<String, dynamic>.from(event))
           .where((event) => (event['title'] ?? '').toString().trim().isNotEmpty)
+          .where((event) => !_isHolidayCalendar(event))
           .toList();
 
       if (!mounted) {

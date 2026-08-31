@@ -1,4 +1,4 @@
-﻿package com.example.edge_ai_smart_bank_transfers
+package com.example.edge_ai_smart_bank_transfers
 
 import android.Manifest
 import android.content.ContentUris
@@ -319,6 +319,7 @@ class MainActivity : FlutterActivity() {
 
         val projection = arrayOf(
             CalendarContract.Instances.EVENT_ID,
+            CalendarContract.Instances.CALENDAR_ID,
             CalendarContract.Instances.TITLE,
             CalendarContract.Instances.BEGIN,
             CalendarContract.Instances.END,
@@ -327,6 +328,9 @@ class MainActivity : FlutterActivity() {
 
         val events =
             mutableListOf<Map<String, Any>>()
+
+        val calendarNames =
+            readCalendarNames()
 
         contentResolver.query(
             uriBuilder.build(),
@@ -339,6 +343,11 @@ class MainActivity : FlutterActivity() {
             val idIndex =
                 cursor.getColumnIndexOrThrow(
                     CalendarContract.Instances.EVENT_ID
+                )
+
+            val calendarIdIndex =
+                cursor.getColumnIndexOrThrow(
+                    CalendarContract.Instances.CALENDAR_ID
                 )
 
             val titleIndex =
@@ -366,6 +375,9 @@ class MainActivity : FlutterActivity() {
                 val eventId =
                     cursor.getLong(idIndex)
 
+                val calendarId =
+                    cursor.getLong(calendarIdIndex)
+
                 val title =
                     cursor.getString(titleIndex)
                         ?: "Untitled event"
@@ -382,6 +394,8 @@ class MainActivity : FlutterActivity() {
                 events.add(
                     mapOf(
                         "id" to eventId.toString(),
+                        "calendarName" to
+                            (calendarNames[calendarId] ?: ""),
                         "title" to title,
                         "startMillis" to begin,
                         "endMillis" to end,
@@ -392,6 +406,44 @@ class MainActivity : FlutterActivity() {
         }
 
         return events
+    }
+
+    private fun readCalendarNames():
+        Map<Long, String> {
+
+        val names =
+            mutableMapOf<Long, String>()
+
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME
+        )
+
+        contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            projection,
+            null,
+            null,
+            null
+        )?.use { cursor ->
+
+            val idIndex =
+                cursor.getColumnIndexOrThrow(
+                    CalendarContract.Calendars._ID
+                )
+
+            val nameIndex =
+                cursor.getColumnIndexOrThrow(
+                    CalendarContract.Calendars.CALENDAR_DISPLAY_NAME
+                )
+
+            while (cursor.moveToNext()) {
+                names[cursor.getLong(idIndex)] =
+                    cursor.getString(nameIndex) ?: ""
+            }
+        }
+
+        return names
     }
 
     private fun runNative(
