@@ -1546,72 +1546,131 @@ class _TransferPageState extends State<TransferPage> {
 
             Text(_status, style: Theme.of(context).textTheme.bodySmall),
 
-            if (_suggestion1Controller.text.isNotEmpty) ...[
+            if (hasSuggestions) ...[
               const SizedBox(height: 24),
 
-              const Text(
-                'AI suggestion 1',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'AI suggestions',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
 
-              TextField(
-                controller: _suggestion1Controller,
-                maxLines: 2,
-                decoration: const InputDecoration(border: OutlineInputBorder()),
+              Text(
+                'Generated locally on this device. '
+                'You can edit either suggestion before using it.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
 
-              OutlinedButton(
-                onPressed: () => _useSuggestion(_suggestion1Controller),
-                child: const Text('Use suggestion 1'),
-              ),
-            ],
+              if (_suggestion1Controller.text.isNotEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Suggestion 1',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
 
-            if (_suggestion2Controller.text.isNotEmpty) ...[
-              const SizedBox(height: 18),
+                        const SizedBox(height: 8),
 
-              const Text(
-                'AI suggestion 2',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+                        TextField(
+                          controller: _suggestion1Controller,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
 
-              const SizedBox(height: 8),
+                        const SizedBox(height: 10),
 
-              TextField(
-                controller: _suggestion2Controller,
-                maxLines: 2,
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-              ),
+                        FilledButton.tonalIcon(
+                          onPressed: () =>
+                              _useSuggestion(_suggestion1Controller),
+                          icon: const Icon(Icons.check),
+                          label: const Text('Use suggestion 1'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
-              const SizedBox(height: 8),
+              if (_suggestion2Controller.text.isNotEmpty) ...[
+                const SizedBox(height: 10),
 
-              OutlinedButton(
-                onPressed: () => _useSuggestion(_suggestion2Controller),
-                child: const Text('Use suggestion 2'),
-              ),
-            ],
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Suggestion 2',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
 
-            if (hasSuggestions) ...[
-              const SizedBox(height: 10),
+                        const SizedBox(height: 8),
 
-              TextButton(
+                        TextField(
+                          controller: _suggestion2Controller,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        FilledButton.tonalIcon(
+                          onPressed: () =>
+                              _useSuggestion(_suggestion2Controller),
+                          icon: const Icon(Icons.check),
+                          label: const Text('Use suggestion 2'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 4),
+
+              TextButton.icon(
                 onPressed: _rejectSuggestions,
-                child: const Text('Reject AI suggestions'),
+                icon: const Icon(Icons.close),
+                label: const Text('Reject AI suggestions'),
               ),
-            ],
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 18),
+            ],
 
             const Divider(),
 
             const SizedBox(height: 16),
 
-            const Text(
-              'Final transfer description',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Icon(Icons.description_outlined, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Final transfer description',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
 
             const SizedBox(height: 8),
