@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
@@ -13,18 +13,13 @@ class EdgeAiApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Smart Bank Transfer',
-      theme: ThemeData(
-        useMaterial3: true,
-      ),
+      theme: ThemeData(useMaterial3: true),
       home: const TransferPage(),
     );
   }
 }
 
-enum TextAssistMode {
-  completion,
-  normalization,
-}
+enum TextAssistMode { completion, normalization }
 
 class TransferPage extends StatefulWidget {
   const TransferPage({super.key});
@@ -40,9 +35,7 @@ class _TransferPageState extends State<TransferPage> {
   final _ibanController = TextEditingController();
 
   final _amountController = TextEditingController();
-  final _currencyController = TextEditingController(
-    text: 'EUR',
-  );
+  final _currencyController = TextEditingController(text: 'EUR');
 
   final _categoryController = TextEditingController();
   final _referencePeriodController = TextEditingController();
@@ -51,29 +44,31 @@ class _TransferPageState extends State<TransferPage> {
   final _suggestion1Controller = TextEditingController();
   final _suggestion2Controller = TextEditingController();
 
-  final _finalDescriptionController =
-      TextEditingController();
+  final _finalDescriptionController = TextEditingController();
 
-  TextAssistMode _textAssistMode =
-      TextAssistMode.completion;
+  TextAssistMode _textAssistMode = TextAssistMode.completion;
 
   bool _busy = false;
   bool _aiReady = false;
   bool _aiInitializing = false;
   Future<void>? _aiInitFuture;
 
+  bool _useCalendarContext = false;
+  bool _calendarLoading = false;
+
+  List<Map<String, dynamic>> _calendarEvents = [];
+  Map<String, dynamic>? _selectedCalendarEvent;
+
   String _status = 'Ready';
 
-  bool get _hasDescription =>
-      _descriptionController.text.trim().isNotEmpty;
+  bool get _hasDescription => _descriptionController.text.trim().isNotEmpty;
 
   String _clean(String value) {
     return value.trim();
   }
 
   String _formatAmount(String value) {
-    final normalized =
-        value.trim().replaceAll(',', '.');
+    final normalized = value.trim().replaceAll(',', '.');
 
     final parsed = double.tryParse(normalized);
 
@@ -88,23 +83,17 @@ class _TransferPageState extends State<TransferPage> {
   }
 
   String _buildPrompt() {
-    final beneficiary =
-        _clean(_beneficiaryController.text);
+    final beneficiary = _clean(_beneficiaryController.text);
 
-    final amount =
-        _formatAmount(_amountController.text);
+    final amount = _formatAmount(_amountController.text);
 
-    final currency =
-        _clean(_currencyController.text).toUpperCase();
+    final currency = _clean(_currencyController.text).toUpperCase();
 
-    final category =
-        _clean(_categoryController.text).toUpperCase();
+    final category = _clean(_categoryController.text).toUpperCase();
 
-    final referencePeriod =
-        _clean(_referencePeriodController.text);
+    final referencePeriod = _clean(_referencePeriodController.text);
 
-    final description =
-        _clean(_descriptionController.text);
+    final description = _clean(_descriptionController.text);
 
     final parts = <String>[];
 
@@ -125,14 +114,12 @@ class _TransferPageState extends State<TransferPage> {
         'adding unsupported information.',
       );
     }
-
     /*
      * DESCRIPTION PRESENT + COMPLETE
      * ==============================
      * COMPLETION.
      */
-    else if (_textAssistMode ==
-        TextAssistMode.completion) {
+    else if (_textAssistMode == TextAssistMode.completion) {
       parts.add(
         'Complete the following partially written '
         'bank-transfer description.',
@@ -144,7 +131,6 @@ class _TransferPageState extends State<TransferPage> {
         'information provided.',
       );
     }
-
     /*
      * DESCRIPTION PRESENT + NORMALIZE
      * ===============================
@@ -175,21 +161,14 @@ class _TransferPageState extends State<TransferPage> {
     parts.add('Amount: $amount $currency');
 
     if (referencePeriod.isNotEmpty) {
-      parts.add(
-        'Reference period: $referencePeriod',
-      );
+      parts.add('Reference period: $referencePeriod');
     }
 
     if (description.isNotEmpty) {
-      if (_textAssistMode ==
-          TextAssistMode.completion) {
-        parts.add(
-          'Partial description: $description',
-        );
+      if (_textAssistMode == TextAssistMode.completion) {
+        parts.add('Partial description: $description');
       } else {
-        parts.add(
-          'Original description: $description',
-        );
+        parts.add('Original description: $description');
       }
     }
 
@@ -198,11 +177,7 @@ class _TransferPageState extends State<TransferPage> {
      *
      * prompt.rstrip("\r\n") + "\n\n"
      */
-    final prompt =
-        parts.join('\n').replaceFirst(
-              RegExp(r'[\r\n]+$'),
-              '',
-            );
+    final prompt = parts.join('\n').replaceFirst(RegExp(r'[\r\n]+$'), '');
 
     return '$prompt\n\n';
   }
@@ -227,6 +202,141 @@ class _TransferPageState extends State<TransferPage> {
     return null;
   }
 
+  String _calendarEventKey(Map<String, dynamic> event) {
+    return '${event['id']}_${event['startMillis']}';
+  }
+
+  String _formatCalendarDate(dynamic value) {
+    final millis = value is int ? value : int.tryParse(value.toString());
+
+    if (millis == null) {
+      return 'Unknown date';
+    }
+
+    final date = DateTime.fromMillisecondsSinceEpoch(millis).toLocal();
+
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+
+    return '${date.year}-'
+        '${twoDigits(date.month)}-'
+        '${twoDigits(date.day)}';
+  }
+
+  String _calendarEventLabel(Map<String, dynamic> event) {
+    final title = (event['title'] ?? 'Untitled event').toString();
+
+    final date = _formatCalendarDate(event['startMillis']);
+
+    return '$title ? $date';
+  }
+
+  Future<void> _setCalendarContext(bool enabled) async {
+    if (!enabled) {
+      setState(() {
+        _useCalendarContext = false;
+        _calendarEvents = [];
+        _selectedCalendarEvent = null;
+        _status = 'Calendar context disabled';
+      });
+
+      return;
+    }
+
+    setState(() {
+      _calendarLoading = true;
+      _status = 'Requesting calendar access...';
+    });
+
+    try {
+      var granted =
+          await platform.invokeMethod<bool>('hasCalendarPermission') ?? false;
+
+      if (!granted) {
+        granted =
+            await platform.invokeMethod<bool>('requestCalendarPermission') ??
+            false;
+      }
+
+      if (!granted) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _useCalendarContext = false;
+          _calendarEvents = [];
+          _selectedCalendarEvent = null;
+
+          _status =
+              'Calendar access denied. '
+              'AI generation is still available.';
+        });
+
+        return;
+      }
+
+      final now = DateTime.now();
+
+      final fromMillis = now
+          .subtract(const Duration(days: 30))
+          .millisecondsSinceEpoch;
+
+      final toMillis = now
+          .add(const Duration(days: 365))
+          .millisecondsSinceEpoch;
+
+      final raw =
+          await platform.invokeMethod<List<dynamic>>('getCalendarEvents', {
+            'fromMillis': fromMillis,
+            'toMillis': toMillis,
+          }) ??
+          <dynamic>[];
+
+      final events = raw
+          .whereType<Map>()
+          .map((event) => Map<String, dynamic>.from(event))
+          .where((event) => (event['title'] ?? '').toString().trim().isNotEmpty)
+          .toList();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _useCalendarContext = true;
+        _calendarEvents = events;
+
+        _selectedCalendarEvent = events.length == 1 ? events.first : null;
+
+        _status = events.isEmpty
+            ? 'Calendar enabled, but no events were found.'
+            : 'Calendar ready. Select an event.';
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _useCalendarContext = false;
+        _calendarEvents = [];
+        _selectedCalendarEvent = null;
+
+        _status =
+            'Calendar unavailable. '
+            'AI generation is still available.';
+      });
+
+      debugPrint('Calendar error: ${e.code}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _calendarLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _initializeAi() async {
     if (_aiReady) {
       return;
@@ -238,9 +348,7 @@ class _TransferPageState extends State<TransferPage> {
     });
 
     try {
-      await platform.invokeMethod<String>(
-        'loadModel',
-      );
+      await platform.invokeMethod<String>('loadModel');
 
       if (mounted) {
         setState(() {
@@ -248,9 +356,7 @@ class _TransferPageState extends State<TransferPage> {
         });
       }
 
-      await platform.invokeMethod<String>(
-        'createContext',
-      );
+      await platform.invokeMethod<String>('createContext');
 
       if (!mounted) {
         return;
@@ -267,13 +373,10 @@ class _TransferPageState extends State<TransferPage> {
 
       setState(() {
         _aiReady = false;
-        _status =
-            'AI unavailable. Manual description is still available.';
+        _status = 'AI unavailable. Manual description is still available.';
       });
 
-      debugPrint(
-        'AI initialization error: ${e.code}',
-      );
+      debugPrint('AI initialization error: ${e.code}');
     } finally {
       if (mounted) {
         setState(() {
@@ -306,30 +409,22 @@ class _TransferPageState extends State<TransferPage> {
     final index = raw.indexOf(marker);
 
     if (index >= 0) {
-      return raw
-          .substring(index + marker.length)
-          .trim();
+      return raw.substring(index + marker.length).trim();
     }
 
     return raw.trim();
   }
 
-  List<String> _parseSuggestions(
-    String output,
-  ) {
+  List<String> _parseSuggestions(String output) {
     String? first;
     String? second;
 
     for (final line in output.split('\n')) {
       final trimmed = line.trim();
 
-      final firstMatch =
-          RegExp(r'^1\.\s*(.+)$')
-              .firstMatch(trimmed);
+      final firstMatch = RegExp(r'^1\.\s*(.+)$').firstMatch(trimmed);
 
-      final secondMatch =
-          RegExp(r'^2\.\s*(.+)$')
-              .firstMatch(trimmed);
+      final secondMatch = RegExp(r'^2\.\s*(.+)$').firstMatch(trimmed);
 
       if (firstMatch != null) {
         first = firstMatch.group(1)?.trim();
@@ -341,10 +436,8 @@ class _TransferPageState extends State<TransferPage> {
     }
 
     return [
-      if (first != null && first.isNotEmpty)
-        first,
-      if (second != null && second.isNotEmpty)
-        second,
+      if (first != null && first.isNotEmpty) first,
+      if (second != null && second.isNotEmpty) second,
     ];
   }
 
@@ -374,42 +467,31 @@ class _TransferPageState extends State<TransferPage> {
       final prompt = _buildPrompt();
 
       setState(() {
-        _status =
-            'Generating locally on this device...';
+        _status = 'Generating locally on this device...';
       });
 
-      final result =
-          await platform.invokeMethod<String>(
-        'generate',
-        {
-          'prompt': prompt,
-        },
-      );
+      final result = await platform.invokeMethod<String>('generate', {
+        'prompt': prompt,
+      });
 
-      final text =
-          _extractModelText(result ?? '');
+      final text = _extractModelText(result ?? '');
 
-      final suggestions =
-          _parseSuggestions(text);
+      final suggestions = _parseSuggestions(text);
 
       if (suggestions.length < 2) {
         setState(() {
-          _status =
-              'The AI did not return two valid suggestions.';
+          _status = 'The AI did not return two valid suggestions.';
         });
 
         return;
       }
 
-      _suggestion1Controller.text =
-          suggestions[0];
+      _suggestion1Controller.text = suggestions[0];
 
-      _suggestion2Controller.text =
-          suggestions[1];
+      _suggestion2Controller.text = suggestions[1];
 
       setState(() {
-        _status =
-            'Two suggestions generated locally';
+        _status = 'Two suggestions generated locally';
       });
     } on PlatformException catch (e) {
       setState(() {
@@ -417,9 +499,7 @@ class _TransferPageState extends State<TransferPage> {
             'AI unavailable. You can still enter the description manually.';
       });
 
-      debugPrint(
-        'Local inference error: ${e.code}',
-      );
+      debugPrint('Local inference error: ${e.code}');
     } finally {
       setState(() {
         _busy = false;
@@ -427,15 +507,11 @@ class _TransferPageState extends State<TransferPage> {
     }
   }
 
-  void _useSuggestion(
-    TextEditingController controller,
-  ) {
-    _finalDescriptionController.text =
-        controller.text.trim();
+  void _useSuggestion(TextEditingController controller) {
+    _finalDescriptionController.text = controller.text.trim();
 
     setState(() {
-      _status =
-          'AI suggestion selected. You can still edit it.';
+      _status = 'AI suggestion selected. You can still edit it.';
     });
   }
 
@@ -444,8 +520,7 @@ class _TransferPageState extends State<TransferPage> {
     _suggestion2Controller.clear();
 
     setState(() {
-      _status =
-          'Suggestions rejected. Manual entry is still available.';
+      _status = 'Suggestions rejected. Manual entry is still available.';
     });
   }
 
@@ -457,6 +532,7 @@ class _TransferPageState extends State<TransferPage> {
       _aiInitFuture ??= _initializeAi();
     });
   }
+
   @override
   void dispose() {
     _beneficiaryController.dispose();
@@ -484,33 +560,24 @@ class _TransferPageState extends State<TransferPage> {
         _suggestion2Controller.text.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Smart Bank Transfer',
-        ),
-      ),
+      appBar: AppBar(title: const Text('Smart Bank Transfer')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Card(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
                     const Icon(Icons.smartphone),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'On-device AI • '
+                        'On-device AI â€¢ '
                         'Transfer data is processed locally',
-                        style:
-                            Theme.of(context)
-                                .textTheme
-                                .bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
                   ],
@@ -524,13 +591,10 @@ class _TransferPageState extends State<TransferPage> {
              * 1. BENEFICIARY
              */
             TextField(
-              controller:
-                  _beneficiaryController,
-              decoration:
-                  const InputDecoration(
+              controller: _beneficiaryController,
+              decoration: const InputDecoration(
                 labelText: 'Beneficiary',
-                border:
-                    OutlineInputBorder(),
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -540,15 +604,11 @@ class _TransferPageState extends State<TransferPage> {
              * 2. IBAN
              */
             TextField(
-              controller:
-                  _ibanController,
-              decoration:
-                  const InputDecoration(
+              controller: _ibanController,
+              decoration: const InputDecoration(
                 labelText: 'IBAN',
-                helperText:
-                    'Not used by the AI model',
-                border:
-                    OutlineInputBorder(),
+                helperText: 'Not used by the AI model',
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -562,18 +622,13 @@ class _TransferPageState extends State<TransferPage> {
                 Expanded(
                   flex: 2,
                   child: TextField(
-                    controller:
-                        _amountController,
-                    keyboardType:
-                        const TextInputType
-                            .numberWithOptions(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration:
-                        const InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Amount',
-                      border:
-                          OutlineInputBorder(),
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -582,13 +637,10 @@ class _TransferPageState extends State<TransferPage> {
 
                 Expanded(
                   child: TextField(
-                    controller:
-                        _currencyController,
-                    decoration:
-                        const InputDecoration(
+                    controller: _currencyController,
+                    decoration: const InputDecoration(
                       labelText: 'Currency',
-                      border:
-                          OutlineInputBorder(),
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -601,13 +653,10 @@ class _TransferPageState extends State<TransferPage> {
              * 4. CATEGORY
              */
             TextField(
-              controller:
-                  _categoryController,
-              decoration:
-                  const InputDecoration(
+              controller: _categoryController,
+              decoration: const InputDecoration(
                 labelText: 'Category',
-                border:
-                    OutlineInputBorder(),
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -617,14 +666,10 @@ class _TransferPageState extends State<TransferPage> {
              * 5. REFERENCE PERIOD
              */
             TextField(
-              controller:
-                  _referencePeriodController,
-              decoration:
-                  const InputDecoration(
-                labelText:
-                    'Reference period (optional)',
-                border:
-                    OutlineInputBorder(),
+              controller: _referencePeriodController,
+              decoration: const InputDecoration(
+                labelText: 'Reference period (optional)',
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -637,22 +682,117 @@ class _TransferPageState extends State<TransferPage> {
              * Text  = Completion / Normalization
              */
             TextField(
-              controller:
-                  _descriptionController,
+              controller: _descriptionController,
               maxLines: 3,
               onChanged: (_) {
                 setState(() {});
               },
-              decoration:
-                  const InputDecoration(
-                labelText:
-                    'Description (optional)',
-                helperText:
-                    'Leave empty to generate a new description',
-                border:
-                    OutlineInputBorder(),
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                helperText: 'Leave empty to generate a new description',
+                border: OutlineInputBorder(),
               ),
             ),
+
+            /*
+             * OPTIONAL CALENDAR CONTEXT
+             *
+             * Available only for Generation.
+             */
+            if (!_hasDescription) ...[
+              const SizedBox(height: 14),
+
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Use calendar context'),
+                        subtitle: const Text(
+                          'Optional. Only the selected event '
+                          'is used locally on this device.',
+                        ),
+                        value: _useCalendarContext,
+                        onChanged: (_busy || _calendarLoading)
+                            ? null
+                            : (value) {
+                                _setCalendarContext(value);
+                              },
+                      ),
+
+                      if (_calendarLoading) ...[
+                        const SizedBox(height: 8),
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 8),
+                        const Text('Loading calendar events...'),
+                      ],
+
+                      if (_useCalendarContext && !_calendarLoading) ...[
+                        const SizedBox(height: 8),
+
+                        if (_calendarEvents.isEmpty)
+                          const Text(
+                            'No calendar events found '
+                            'in the selected time range.',
+                          )
+                        else
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: _selectedCalendarEvent == null
+                                ? null
+                                : _calendarEventKey(_selectedCalendarEvent!),
+                            decoration: const InputDecoration(
+                              labelText: 'Calendar event',
+                              border: OutlineInputBorder(),
+                            ),
+                            hint: const Text('Select an event'),
+                            items: _calendarEvents.map((event) {
+                              return DropdownMenuItem<String>(
+                                value: _calendarEventKey(event),
+                                child: Text(
+                                  _calendarEventLabel(event),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: _busy
+                                ? null
+                                : (key) {
+                                    if (key == null) {
+                                      return;
+                                    }
+
+                                    final event = _calendarEvents.firstWhere(
+                                      (item) => _calendarEventKey(item) == key,
+                                    );
+
+                                    setState(() {
+                                      _selectedCalendarEvent = event;
+
+                                      _status = 'Calendar event selected';
+                                    });
+                                  },
+                          ),
+
+                        if (_selectedCalendarEvent != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Selected: '
+                            '${_selectedCalendarEvent!['title']}'
+                            ' ? '
+                            '${_formatCalendarDate(_selectedCalendarEvent!['startMillis'])}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
 
             /*
              * Only shown when the user entered
@@ -661,61 +801,45 @@ class _TransferPageState extends State<TransferPage> {
             if (_hasDescription) ...[
               const SizedBox(height: 14),
 
-              const Text(
-                'What should the AI do with your description?',
-              ),
+              const Text('What should the AI do with your description?'),
 
               const SizedBox(height: 8),
 
               SegmentedButton<TextAssistMode>(
                 segments: const [
                   ButtonSegment(
-                    value:
-                        TextAssistMode.completion,
-                    label:
-                        Text('Complete'),
-                    icon:
-                        Icon(Icons.edit),
+                    value: TextAssistMode.completion,
+                    label: Text('Complete'),
+                    icon: Icon(Icons.edit),
                   ),
                   ButtonSegment(
-                    value:
-                        TextAssistMode.normalization,
-                    label:
-                        Text('Normalize'),
-                    icon:
-                        Icon(Icons.auto_fix_high),
+                    value: TextAssistMode.normalization,
+                    label: Text('Normalize'),
+                    icon: Icon(Icons.auto_fix_high),
                   ),
                 ],
-                selected: {
-                  _textAssistMode,
-                },
-                onSelectionChanged:
-                    _busy
-                        ? null
-                        : (selection) {
-                            setState(() {
-                              _textAssistMode =
-                                  selection.first;
-                            });
-                          },
+                selected: {_textAssistMode},
+                onSelectionChanged: _busy
+                    ? null
+                    : (selection) {
+                        setState(() {
+                          _textAssistMode = selection.first;
+                        });
+                      },
               ),
             ],
 
             const SizedBox(height: 22),
 
             FilledButton.icon(
-              onPressed:
-                  (_busy || _aiInitializing) ? null : _generate,
-              icon:
-                  const Icon(
-                Icons.auto_awesome,
-              ),
+              onPressed: (_busy || _aiInitializing) ? null : _generate,
+              icon: const Icon(Icons.auto_awesome),
               label: Text(
                 _busy
                     ? 'Generating...'
                     : hasSuggestions
-                        ? 'Regenerate suggestions'
-                        : 'Generate suggestions',
+                    ? 'Regenerate suggestions'
+                    : 'Generate suggestions',
               ),
             ),
 
@@ -726,89 +850,53 @@ class _TransferPageState extends State<TransferPage> {
 
             const SizedBox(height: 18),
 
-            Text(
-              _status,
-              style:
-                  Theme.of(context)
-                      .textTheme
-                      .bodySmall,
-            ),
+            Text(_status, style: Theme.of(context).textTheme.bodySmall),
 
-            if (_suggestion1Controller
-                    .text.isNotEmpty) ...[
+            if (_suggestion1Controller.text.isNotEmpty) ...[
               const SizedBox(height: 24),
 
               const Text(
                 'AI suggestion 1',
-                style: TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 8),
 
               TextField(
-                controller:
-                    _suggestion1Controller,
+                controller: _suggestion1Controller,
                 maxLines: 2,
-                decoration:
-                    const InputDecoration(
-                  border:
-                      OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
 
               const SizedBox(height: 8),
 
               OutlinedButton(
-                onPressed: () =>
-                    _useSuggestion(
-                  _suggestion1Controller,
-                ),
-                child:
-                    const Text(
-                  'Use suggestion 1',
-                ),
+                onPressed: () => _useSuggestion(_suggestion1Controller),
+                child: const Text('Use suggestion 1'),
               ),
             ],
 
-            if (_suggestion2Controller
-                    .text.isNotEmpty) ...[
+            if (_suggestion2Controller.text.isNotEmpty) ...[
               const SizedBox(height: 18),
 
               const Text(
                 'AI suggestion 2',
-                style: TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 8),
 
               TextField(
-                controller:
-                    _suggestion2Controller,
+                controller: _suggestion2Controller,
                 maxLines: 2,
-                decoration:
-                    const InputDecoration(
-                  border:
-                      OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
 
               const SizedBox(height: 8),
 
               OutlinedButton(
-                onPressed: () =>
-                    _useSuggestion(
-                  _suggestion2Controller,
-                ),
-                child:
-                    const Text(
-                  'Use suggestion 2',
-                ),
+                onPressed: () => _useSuggestion(_suggestion2Controller),
+                child: const Text('Use suggestion 2'),
               ),
             ],
 
@@ -816,12 +904,8 @@ class _TransferPageState extends State<TransferPage> {
               const SizedBox(height: 10),
 
               TextButton(
-                onPressed:
-                    _rejectSuggestions,
-                child:
-                    const Text(
-                  'Reject AI suggestions',
-                ),
+                onPressed: _rejectSuggestions,
+                child: const Text('Reject AI suggestions'),
               ),
             ],
 
@@ -833,24 +917,17 @@ class _TransferPageState extends State<TransferPage> {
 
             const Text(
               'Final transfer description',
-              style: TextStyle(
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 8),
 
             TextField(
-              controller:
-                  _finalDescriptionController,
+              controller: _finalDescriptionController,
               maxLines: 3,
-              decoration:
-                  const InputDecoration(
-                hintText:
-                    'Write manually or select an AI suggestion',
-                border:
-                    OutlineInputBorder(),
+              decoration: const InputDecoration(
+                hintText: 'Write manually or select an AI suggestion',
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -859,9 +936,7 @@ class _TransferPageState extends State<TransferPage> {
             const Text(
               'The transfer is simulated. '
               'No payment will be executed.',
-              style: TextStyle(
-                fontSize: 12,
-              ),
+              style: TextStyle(fontSize: 12),
             ),
           ],
         ),
@@ -869,6 +944,3 @@ class _TransferPageState extends State<TransferPage> {
     );
   }
 }
-
-
-
