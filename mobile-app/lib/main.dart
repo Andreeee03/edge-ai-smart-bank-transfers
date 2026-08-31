@@ -164,6 +164,29 @@ class _TransferPageState extends State<TransferPage> {
       parts.add('Reference period: $referencePeriod');
     }
 
+    /*
+     * Optional calendar context.
+     *
+     * It is used ONLY for automatic Generation,
+     * matching the SFT prompt structure.
+     */
+    if (description.isEmpty &&
+        _useCalendarContext &&
+        _selectedCalendarEvent != null) {
+      final event = _selectedCalendarEvent!;
+
+      final eventTitle = (event['title'] ?? '').toString().trim();
+
+      final eventDate = _formatCalendarEventDateIso(event);
+
+      final eventCategory = _inferCalendarEventCategory(eventTitle);
+
+      parts.add('Calendar context:');
+      parts.add('- Event: $eventTitle');
+      parts.add('- Date: $eventDate');
+      parts.add('- Event category: $eventCategory');
+    }
+
     if (description.isNotEmpty) {
       if (_textAssistMode == TextAssistMode.completion) {
         parts.add('Partial description: $description');
@@ -414,6 +437,176 @@ class _TransferPageState extends State<TransferPage> {
       _selectedCalendarEvent = selected;
       _status = 'Calendar event selected';
     });
+  }
+
+  String _formatCalendarEventDateIso(Map<String, dynamic> event) {
+    final value = event['startMillis'];
+
+    final millis = value is int ? value : int.tryParse(value.toString());
+
+    if (millis == null) {
+      return '';
+    }
+
+    final allDay = event['allDay'] == true;
+
+    // Gli eventi all-day di Android Calendar sono rappresentati
+    // usando UTC. Per gli altri usiamo il fuso orario locale.
+    final date = allDay
+        ? DateTime.fromMillisecondsSinceEpoch(millis, isUtc: true)
+        : DateTime.fromMillisecondsSinceEpoch(millis).toLocal();
+
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+
+    return '${date.year}-'
+        '${twoDigits(date.month)}-'
+        '${twoDigits(date.day)}';
+  }
+
+  String _inferCalendarEventCategory(String title) {
+    final text = title.toLowerCase();
+
+    bool containsAny(List<String> terms) {
+      return terms.any(text.contains);
+    }
+
+    if (containsAny(['hotel', 'hostel', 'accommodation', 'room booking'])) {
+      return 'Accommodation';
+    }
+
+    if (containsAny(['charity', 'donation', 'fundraiser'])) {
+      return 'Charity';
+    }
+
+    if (containsAny(['childcare', 'daycare', 'babysitter', 'nursery'])) {
+      return 'Childcare';
+    }
+
+    if (containsAny(['consulting', 'consultation', 'consultant'])) {
+      return 'Consulting';
+    }
+
+    if (containsAny(['course', 'workshop', 'lesson', 'class'])) {
+      return 'Course';
+    }
+
+    if (containsAny(['lunch', 'dinner', 'restaurant', 'brunch', 'dining'])) {
+      return 'Dining';
+    }
+
+    if (containsAny([
+      'thesis',
+      'exam',
+      'university',
+      'school',
+      'lecture',
+      'education',
+    ])) {
+      return 'Education';
+    }
+
+    if (containsAny(['family', 'family meeting'])) {
+      return 'Family';
+    }
+
+    if (containsAny([
+      'doctor',
+      'dentist',
+      'dental',
+      'therapy',
+      'physiotherapy',
+      'hospital',
+      'medical',
+      'clinic',
+    ])) {
+      return 'Health';
+    }
+
+    if (containsAny(['insurance', 'policy renewal', 'insurance premium'])) {
+      return 'Insurance';
+    }
+
+    if (containsAny([
+      'maintenance',
+      'air conditioner service',
+      'boiler service',
+    ])) {
+      return 'Maintenance';
+    }
+
+    if (containsAny(['membership', 'club renewal', 'membership renewal'])) {
+      return 'Membership';
+    }
+
+    if (containsAny([
+      'veterinary',
+      'veterinarian',
+      'vet appointment',
+      'pet care',
+    ])) {
+      return 'Pet care';
+    }
+
+    if (containsAny([
+      'business meeting',
+      'client meeting',
+      'professional meeting',
+      'work meeting',
+    ])) {
+      return 'Professional';
+    }
+
+    if (containsAny(['repair', 'fixing'])) {
+      return 'Repair';
+    }
+
+    if (containsAny([
+      'yoga',
+      'gym',
+      'fitness',
+      'sport',
+      'football',
+      'tennis',
+      'padel',
+      'swimming',
+    ])) {
+      return 'Sport';
+    }
+
+    if (containsAny([
+      'flight',
+      'airport',
+      'trip',
+      'travel',
+      'vacation',
+      'train journey',
+    ])) {
+      return 'Travel';
+    }
+
+    final vehicle = containsAny([
+      'car',
+      'motorcycle',
+      'motorbike',
+      'vehicle',
+      'scooter',
+    ]);
+
+    final service = containsAny([
+      'service',
+      'mechanic',
+      'oil change',
+      'tyre',
+      'tire',
+      'inspection',
+    ]);
+
+    if (vehicle && service) {
+      return 'Vehicle service';
+    }
+
+    // Categoria generica vista nel training.
+    return 'Event';
   }
 
   Future<void> _setCalendarContext(bool enabled) async {
