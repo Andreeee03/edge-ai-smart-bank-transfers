@@ -1,0 +1,132 @@
+{
+    "experiment": "Definitive HF vs F16 vs Q4_K_M vs Q5_K_M validation",
+    "test_file": "/home/ubuntu/edge-ai-smart-bank-transfers/data_Claude/processed/test_sft.jsonl",
+    "examples_tested": 500,
+    "prompt_protocol": {
+        "final_boundary": "\\n\\n",
+        "gguf_transport": "raw llama-server /completion JSON prompt; no -f",
+        "chat_template": false
+    },
+    "generation_parameters": {
+        "strategy": "greedy",
+        "max_new_tokens": 100,
+        "temperature": 0.0,
+        "top_k": 1,
+        "top_p": 1.0,
+        "min_p": 0.0,
+        "repetition_penalty": 1.0,
+        "seed": 42
+    },
+    "model_metrics": {
+        "HF": {
+            "average_rouge1_reference": 0.7739400286222303,
+            "average_rouge2_reference": 0.5490748098676289,
+            "valid_format_count": 500,
+            "valid_format_percent": 100.0,
+            "exactly_two_count": 500,
+            "exactly_two_percent": 100.0,
+            "distinct_alternatives_count": 500,
+            "distinct_alternatives_percent": 100.0,
+            "repetition_count": 0,
+            "exact_reference_count": 20
+        },
+        "F16": {
+            "average_rouge1_reference": 0.773979041635361,
+            "average_rouge2_reference": 0.5484780891487343,
+            "valid_format_count": 500,
+            "valid_format_percent": 100.0,
+            "exactly_two_count": 500,
+            "exactly_two_percent": 100.0,
+            "distinct_alternatives_count": 500,
+            "distinct_alternatives_percent": 100.0,
+            "repetition_count": 0,
+            "exact_reference_count": 20
+        },
+        "Q4_K_M": {
+            "average_rouge1_reference": 0.7668868198232773,
+            "average_rouge2_reference": 0.535426923126685,
+            "valid_format_count": 500,
+            "valid_format_percent": 100.0,
+            "exactly_two_count": 500,
+            "exactly_two_percent": 100.0,
+            "distinct_alternatives_count": 499,
+            "distinct_alternatives_percent": 99.8,
+            "repetition_count": 0,
+            "exact_reference_count": 22
+        },
+        "Q5_K_M": {
+            "average_rouge1_reference": 0.7749616325424884,
+            "average_rouge2_reference": 0.5448115421611006,
+            "valid_format_count": 500,
+            "valid_format_percent": 100.0,
+            "exactly_two_count": 500,
+            "exactly_two_percent": 100.0,
+            "distinct_alternatives_count": 500,
+            "distinct_alternatives_percent": 100.0,
+            "repetition_count": 0,
+            "exact_reference_count": 20
+        }
+    },
+    "pairwise_similarity": {
+        "HF_vs_F16": {
+            "average_rouge1": 0.9983059234314073,
+            "average_rouge2": 0.9966284154792401,
+            "exact_match_count": 492,
+            "exact_match_percent": 98.4
+        },
+        "HF_vs_Q4_K_M": {
+            "average_rouge1": 0.872192087030405,
+            "average_rouge2": 0.7481828327331371,
+            "exact_match_count": 138,
+            "exact_match_percent": 27.6
+        },
+        "HF_vs_Q5_K_M": {
+            "average_rouge1": 0.9192832126156782,
+            "average_rouge2": 0.8391952052939422,
+            "exact_match_count": 218,
+            "exact_match_percent": 43.6
+        },
+        "F16_vs_Q4_K_M": {
+            "average_rouge1": 0.8727368292296632,
+            "average_rouge2": 0.7486386049019979,
+            "exact_match_count": 137,
+            "exact_match_percent": 27.4
+        },
+        "F16_vs_Q5_K_M": {
+            "average_rouge1": 0.9189413321023884,
+            "average_rouge2": 0.8390586218248645,
+            "exact_match_count": 217,
+            "exact_match_percent": 43.4
+        },
+        "Q4_K_M_vs_Q5_K_M": {
+            "average_rouge1": 0.865739398049558,
+            "average_rouge2": 0.7335598361598119,
+            "exact_match_count": 109,
+            "exact_match_percent": 21.8
+        }
+    },
+    "file_sizes": {
+        "HF_safetensors": {
+            "bytes": 1484995176,
+            "MiB": 1416.201759338379,
+            "GiB": 1.3830095306038857
+        },
+        "F16": {
+            "bytes": 1487560064,
+            "MiB": 1418.6478271484375,
+            "GiB": 1.385398268699646
+        },
+        "Q4_K_M": {
+            "bytes": 468626816,
+            "MiB": 446.9173583984375,
+            "GiB": 0.4364427328109741,
+            "reduction_vs_F16_percent": 68.49694830204854
+        },
+        "Q5_K_M": {
+            "bytes": 538029440,
+            "MiB": 513.1048583984375,
+            "GiB": 0.5010789632797241,
+            "reduction_vs_F16_percent": 63.83141407055144
+        }
+    }
+}
