@@ -391,8 +391,6 @@ The current implementation includes:
 - Optional local calendar context
 - On-device benchmarking
 
-Further repository maintenance may include documentation refinement, screenshot updates, release notes, and cleanup of development-only artifacts.
-
 ---
 
 ## Thesis
