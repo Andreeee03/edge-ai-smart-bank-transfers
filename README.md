@@ -1,19 +1,21 @@
 # Edge AI for Smart Bank Transfers
 
-> Bachelor's thesis project exploring fully on-device language-model inference for bank-transfer description assistance on Android.
+> Bachelor's thesis project exploring lightweight language-model deployment for bank-transfer description assistance on Android, with on-device inference through `llama.cpp`.
 
 ## Overview
 
-**Edge AI for Smart Bank Transfers** is an experimental mobile application that uses a compact, fine-tuned language model to help users generate, complete, and normalize bank-transfer descriptions.
+**Edge AI for Smart Bank Transfers** is an experimental Android application that uses a compact, fine-tuned language model to help users generate, complete, and normalize bank-transfer descriptions.
 
-The project focuses on running inference directly on an **Android device** rather than sending transaction information to a remote inference service. The complete workflow covers synthetic dataset preparation, supervised fine-tuning with LoRA, model evaluation, GGUF conversion and quantization, and native Android deployment through `llama.cpp`.
+The project covers the full pipeline, including synthetic dataset generation, supervised fine-tuning with LoRA, model evaluation, GGUF conversion and quantization, Android integration, and on-device benchmarking.
 
-### Key goals
+The final mobile application runs inference locally on the device. Internet access is required only to download the application and, on first launch, the quantized model artifact. Once the model has been stored locally, inference can be performed offline without a remote LLM inference service.
+
+### Key Goals
 
 - Keep bank-transfer information on the user's device during inference.
-- Provide useful bank-transfer descriptions without requiring a cloud inference API.
-- Support fully offline inference after the model has been downloaded to the device.
-- Evaluate the trade-off between model quality, size, memory usage, and response time on mobile hardware.
+- Provide useful bank-transfer descriptions without relying on a cloud inference API.
+- Support offline inference after the one-time model download.
+- Evaluate the trade-off between model quality, model size, memory usage, and response time on mobile hardware.
 
 ---
 
@@ -42,7 +44,7 @@ Reference period: August 2026
 
 ### Description Completion
 
-Complete a partially written description while preserving its intended meaning.
+Complete a partially written bank-transfer description while preserving its intended meaning.
 
 ```text
 Partial description:
@@ -66,7 +68,9 @@ rent august mario
 
 ### Calendar-Aware Generation
 
-For the **Generation** task, optional calendar context can be used when permission is granted by the user. Calendar information is processed locally and is not required for the other tasks.
+For the **Generation** task, optional calendar context can be used when calendar permission is granted by the user.
+
+Calendar information is processed locally on the Android device and is not required for Completion or Normalization.
 
 ---
 
@@ -131,7 +135,7 @@ llama.cpp + GGUF
 Fully on-device inference
 ```
 
-AWS EC2 is used only for computationally intensive model-preparation tasks. Once the quantized model is available on the phone, inference is executed locally through `llama.cpp`.
+AWS EC2 is used only for computationally intensive model-preparation tasks. Once the quantized model has been downloaded and stored on the phone, all inference is executed locally through `llama.cpp`.
 
 ---
 
@@ -142,52 +146,107 @@ AWS EC2 is used only for computationally intensive model-preparation tasks. Once
 | Mobile application | Flutter, Dart |
 | Android integration | Kotlin, JNI, C++ |
 | On-device inference | llama.cpp, GGUF |
-| Model | LiquidAI LFM2-700M |
+| Base model | LiquidAI LFM2-700M |
 | Fine-tuning | Hugging Face Transformers, TRL, PEFT / LoRA, PyTorch |
 | Training environment | Amazon EC2 GPU instance |
 | Evaluation | ROUGE, BERTScore, task-specific consistency checks |
 
 ---
 
-## Download the Android App
+## Download and Installation
 
-A pre-built Android APK is intended to be distributed through **GitHub Releases**:
+### Android APK
 
-**Releases:** https://github.com/Andreeeee03/edge-ai-smart-bank-transfers/releases
+A pre-built Android APK is available through **GitHub Releases**:
 
-For the public release, the APK and the language-model file are kept separate so that the application package remains lightweight.
+**Releases:** https://github.com/Andreeee03/edge-ai-smart-bank-transfers/releases
 
-### Installation flow
+Download the latest application release:
 
-1. Download the latest APK from the **Releases** page.
-2. Install the APK on a compatible Android device.
-3. Launch the application.
-4. On first setup, download the required GGUF model to the device.
-5. After the model is stored locally, inference can run without a cloud inference service.
+```text
+EdgeAI-SmartBankTransfers-v1.0.0.apk
+```
 
-> The public APK/model download workflow is being prepared for the final project release. Until a release is published, build the application from source using the instructions below.
+### Installation Steps
+
+1. Open the repository **Releases** page.
+2. Open the latest application release, currently `v1.0.0`.
+3. Download `EdgeAI-SmartBankTransfers-v1.0.0.apk`.
+4. Open the downloaded APK on the Android device.
+5. If Android blocks the installation, allow installation from the browser, file manager, or application used to open the APK.
+6. Complete the installation and launch the application.
+
+> Android may display a warning because the APK is installed outside the Google Play Store. Only install the APK if it was downloaded from this repository's official Releases page.
+
+### First Launch
+
+On the first launch, the application automatically downloads the quantized language model:
+
+```text
+LFM2-700M_Claude-DS_Q5_K_M.gguf
+```
+
+The model is approximately **513 MiB**, so a stable internet connection is recommended for the initial setup.
+
+During the download, the application displays the model-download progress. Once the download is complete, the model is stored in the application's private local storage and loaded through `llama.cpp`.
+
+After this one-time setup, the application can perform AI inference without an internet connection.
+
+### Subsequent Launches
+
+When the model is already available locally:
+
+```text
+Application launch
+        │
+        ▼
+Local model detected
+        │
+        ▼
+Load GGUF with llama.cpp
+        │
+        ▼
+On-device inference
+```
+
+The model is not downloaded again unless the application's local data is removed or the application is reinstalled.
 
 ---
 
 ## Model Distribution
 
-The GGUF model is intentionally **not committed to the Git repository** because of its size.
+The quantized GGUF model is intentionally **not committed to normal Git version control** because of its size.
 
-The release architecture is designed to keep the model separate from the APK:
+The model is distributed through a dedicated GitHub Release:
 
 ```text
-GitHub Release
-    ├── Android APK
-    └── Quantized GGUF model
-
-First application setup
-    └── Download model → store locally → load with llama.cpp
-
-Subsequent use
-    └── Local model → local inference → no cloud inference API
+model-v1.0.0
+└── LFM2-700M_Claude-DS_Q5_K_M.gguf
 ```
 
-This approach makes it possible to update the model independently from the application source code while keeping runtime inference on-device.
+The Android application downloads this artifact automatically when the model is not yet available locally.
+
+The current deployment flow is:
+
+```text
+GitHub application release
+        │
+        └── EdgeAI-SmartBankTransfers-v1.0.0.apk
+
+GitHub model release
+        │
+        └── LFM2-700M_Claude-DS_Q5_K_M.gguf
+
+First launch
+        │
+        └── Download model → save locally → load with llama.cpp
+
+Subsequent launches
+        │
+        └── Reuse local model → on-device inference
+```
+
+Keeping the APK and model separate avoids embedding a large model file inside the application package and allows the model artifact to be distributed independently.
 
 ---
 
@@ -201,13 +260,13 @@ This approach makes it possible to update the model independently from the appli
 - Android NDK
 - CMake
 - Git
-- A compatible Android device
+- A compatible Android device for deployment testing
 
 Clone the repository:
 
 ```bash
-git clone https://github.com/Andreeeee03/edge-ai-smart-bank-transfers.git
-cd edge-ai-smart-bank-transfers
+git clone https://github.com/Andreeee03/edge-ai-smart-bank-transfers.git
+cd edge-ai-smart-bank-transfers/mobile-app
 ```
 
 Install Flutter dependencies:
@@ -222,32 +281,58 @@ Check the development environment:
 flutter doctor
 ```
 
+Build a debug APK:
+
+```bash
+flutter build apk --debug
+```
+
 Build a release APK:
 
 ```bash
 flutter build apk --release
 ```
 
-The generated APK is normally available at:
+The generated release APK is normally available at:
 
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-The GGUF model must be available in the location expected by the mobile application before native inference can start. The final public release will automate the model acquisition step.
+The application automatically downloads the required GGUF model on first launch when the model is not already present in its private local storage.
 
 ---
 
 ## Privacy and Offline Inference
 
-The project is designed around an Edge AI architecture:
+The project is designed around an Edge AI architecture.
 
-- Transaction data used for inference is processed locally.
-- Model execution is performed on the Android device through `llama.cpp`.
+- Bank-transfer information used for AI inference is processed locally on the Android device.
+- Model execution is performed locally through `llama.cpp`.
 - Calendar context, when enabled, is processed locally.
-- No remote LLM inference endpoint is required after the model has been downloaded.
+- No bank-transfer information is sent to a remote LLM inference endpoint.
+- Internet access is required for the initial model download, but not for subsequent inference.
 
-An internet connection may therefore be required for the **initial application/model download**, but not for subsequent model inference.
+In practical terms:
+
+```text
+Internet
+   │
+   └── Initial GGUF download only
+
+Bank-transfer data
+   │
+   ▼
+Local GGUF model
+   │
+   ▼
+llama.cpp
+   │
+   ▼
+On-device result
+```
+
+If the device is offline after the model has been downloaded, Generation, Completion, and Normalization can still be performed locally.
 
 ---
 
@@ -258,32 +343,58 @@ The repository contains the source code and supporting experimental pipeline for
 - Dataset preprocessing
 - Fine-tuning and LoRA configuration
 - LoRA merge
-- Model evaluation
+- Offline model evaluation
 - GGUF conversion and quantization
+- Quantization validation
 - Flutter/Android application development
 - Native `llama.cpp` integration
+- Calendar-context integration
 - On-device validation and benchmarking
 
-Large generated artifacts such as model checkpoints and GGUF files are excluded from normal Git version control.
+Large generated artifacts such as intermediate model checkpoints and GGUF files are excluded from normal Git version control and distributed separately when needed.
 
 ---
 
-## Research Project Status
+## Releases
 
-This repository accompanies a Bachelor's thesis project. The experimental pipeline and Android prototype are under final validation and documentation before the first public release.
+Current public artifacts are distributed through GitHub Releases.
 
-Final release preparation will include:
+### Application
 
-- Repository cleanup
-- Release APK
-- Separate GGUF model asset
-- Automated first-run model acquisition
-- Final device benchmarks
-- Updated screenshots and usage documentation
+```text
+Tag: v1.0.0
+Asset: EdgeAI-SmartBankTransfers-v1.0.0.apk
+```
+
+### Model
+
+```text
+Tag: model-v1.0.0
+Asset: LFM2-700M_Claude-DS_Q5_K_M.gguf
+```
+
+---
+
+## Project Status
+
+The end-to-end prototype is operational on Android.
+
+The current implementation includes:
+
+- Fine-tuned LFM2-700M model
+- Q5_K_M quantized GGUF deployment
+- Flutter Android interface
+- Native inference through Kotlin, JNI/C++, and `llama.cpp`
+- Automatic first-run model download
+- Download progress indication
+- Offline inference after model setup
+- Optional local calendar context
+- On-device benchmarking
+
+Further repository maintenance may include documentation refinement, screenshot updates, release notes, and cleanup of development-only artifacts.
 
 ---
 
 ## Thesis
 
 **Edge AI for Smart Bank Transfers** investigates whether a lightweight, task-specific language model can provide useful payment-description assistance directly on consumer mobile hardware while preserving local data processing and offline inference capabilities.
-
