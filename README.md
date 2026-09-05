@@ -60,10 +60,10 @@ Rewrite an informal or poorly formatted description into clearer and more natura
 
 ```text
 Original description:
-rent august mario
+rent pay to mario
 
-1. August rent payment to Mario Rossi
-2. Rent payment to Mario Rossi for August
+1. Rent payment due
+2. Rent payment to Mario Rossi
 ```
 
 ### Calendar-Aware Generation
