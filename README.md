@@ -50,8 +50,8 @@ Complete a partially written bank-transfer description while preserving its inte
 Partial description:
 August rent...
 
-1. August rent payment to Mario Rossi
-2. August rent payment for the apartment
+1. August 2026 rent payment
+2. Apartment rent due August 2026
 ```
 
 ### Description Normalization
