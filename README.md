@@ -38,8 +38,8 @@ Beneficiary: Mario Rossi
 Amount: 850 EUR
 Reference period: August 2026
 
-1. August 2026 rent payment to Mario Rossi
-2. Rent payment for August 2026
+1. August 2026: rent payment
+2. August 2026 apartment rent settlement
 ```
 
 ### Description Completion
