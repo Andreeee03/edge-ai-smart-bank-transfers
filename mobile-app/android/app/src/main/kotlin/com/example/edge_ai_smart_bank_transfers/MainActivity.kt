@@ -1,4 +1,4 @@
-package com.example.edge_ai_smart_bank_transfers
+﻿package com.example.edge_ai_smart_bank_transfers
 
 import android.Manifest
 import android.content.ContentUris
@@ -72,11 +72,12 @@ class MainActivity : FlutterActivity() {
                         )
                     }
                 }
-
                 "loadModel" -> {
-
                     val modelName =
                         "LFM2-700M_Claude-DS_Q5_K_M.gguf"
+
+                    val modelUrl =
+                        "https://github.com/Andreeee03/edge-ai-smart-bank-transfers/releases/download/model-v1.0.0/LFM2-700M_Claude-DS_Q5_K_M.gguf"
 
                     val modelFile =
                         File(
@@ -84,19 +85,108 @@ class MainActivity : FlutterActivity() {
                             "models/$modelName"
                         )
 
-                    if (!modelFile.exists()) {
-                        result.error(
-                            "MODEL_NOT_FOUND",
-                            "Model not found: ${modelFile.absolutePath}",
-                            null
-                        )
-
-                        return@setMethodCallHandler
-                    }
-
                     Thread {
                         try {
                             ensureNativeInitialized()
+
+                            if (!modelFile.exists()) {
+                                modelFile.parentFile?.mkdirs()
+
+                                val tempFile =
+                                    File(
+                                        modelFile.parentFile,
+                                        "$modelName.tmp"
+                                    )
+
+                                if (tempFile.exists()) {
+                                    tempFile.delete()
+                                }
+
+                                val connection =
+                                    java.net.URL(modelUrl)
+                                        .openConnection() as java.net.HttpURLConnection
+
+                                connection.connectTimeout = 15000
+                                connection.readTimeout = 30000
+                                connection.instanceFollowRedirects = true
+
+                                try {
+                                    connection.connect()
+
+                                    if (connection.responseCode !in 200..299) {
+                                        throw IllegalStateException(
+                                            "Model download failed with HTTP ${connection.responseCode}"
+                                        )
+                                    }
+
+                                    val totalBytes =
+                                        connection.contentLengthLong
+
+                                    connection.inputStream.use { input ->
+                                        tempFile.outputStream().use { output ->
+                                            val buffer =
+                                                ByteArray(1024 * 1024)
+
+                                            var downloadedBytes = 0L
+                                            var lastPercent = -1
+
+                                            while (true) {
+                                                val count =
+                                                    input.read(buffer)
+
+                                                if (count == -1) {
+                                                    break
+                                                }
+
+                                                output.write(
+                                                    buffer,
+                                                    0,
+                                                    count
+                                                )
+
+                                                downloadedBytes += count
+
+                                                if (totalBytes > 0) {
+                                                    val percent =
+                                                        (
+                                                            downloadedBytes *
+                                                                100 /
+                                                                totalBytes
+                                                        ).toInt()
+
+                                                    if (
+                                                        percent !=
+                                                        lastPercent
+                                                    ) {
+                                                        lastPercent =
+                                                            percent
+
+                                                        runOnUiThread {
+                                                            MethodChannel(
+                                                                flutterEngine
+                                                                    .dartExecutor
+                                                                    .binaryMessenger,
+                                                                channel
+                                                            ).invokeMethod(
+                                                                "modelDownloadProgress",
+                                                                percent
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } finally {
+                                    connection.disconnect()
+                                }
+
+                                if (!tempFile.renameTo(modelFile)) {
+                                    throw IllegalStateException(
+                                        "Unable to finalize downloaded model."
+                                    )
+                                }
+                            }
 
                             val response =
                                 nativeLoadModel(
@@ -470,3 +560,7 @@ class MainActivity : FlutterActivity() {
         }.start()
     }
 }
+
+
+
+

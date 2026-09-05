@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
@@ -51,6 +51,7 @@ class _TransferPageState extends State<TransferPage> {
   bool _busy = false;
   bool _aiReady = false;
   bool _aiInitializing = false;
+  double? _modelDownloadProgress;
   Future<void>? _aiInitFuture;
 
   bool _useCalendarContext = false;
@@ -1198,6 +1199,21 @@ class _TransferPageState extends State<TransferPage> {
   void initState() {
     super.initState();
 
+    platform.setMethodCallHandler((call) async {
+      if (call.method == 'modelDownloadProgress') {
+        final percent = call.arguments as int;
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _modelDownloadProgress = percent / 100.0;
+          _status = 'Downloading AI model... $percent%';
+        });
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _aiInitFuture ??= _initializeAi();
     });
@@ -1544,8 +1560,20 @@ class _TransferPageState extends State<TransferPage> {
 
             const SizedBox(height: 18),
 
-            Text(_status, style: Theme.of(context).textTheme.bodySmall),
+            if (_modelDownloadProgress != null) ...[
 
+              LinearProgressIndicator(
+
+                value: _modelDownloadProgress,
+
+              ),
+
+              const SizedBox(height: 8),
+
+            ],
+
+
+            Text(_status, style: Theme.of(context).textTheme.bodySmall),
             if (hasSuggestions) ...[
               const SizedBox(height: 24),
 
@@ -1697,3 +1725,6 @@ class _TransferPageState extends State<TransferPage> {
     );
   }
 }
+
+
+
