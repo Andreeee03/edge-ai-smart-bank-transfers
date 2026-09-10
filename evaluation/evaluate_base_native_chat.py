@@ -1,18 +1,20 @@
 # ============================================================
-# FINAL NATIVE-CHAT BASELINE EVALUATION
+# FINAL FEW-SHOT NATIVE-CHAT BASELINE EVALUATION
 # Edge AI for Smart Bank Transfers
 #
 # Purpose:
 #   Evaluate the original LiquidAI/LFM2-700M checkpoint on the same
-#   GPTPlus and Claude test sets, but using the model's native chat
-#   interface via tokenizer.apply_chat_template(...).
+#   GPTPlus and Claude test sets using the model's native chat
+#   interface supplemented with fixed few-shot demonstrations.
 #
 # Methodological choices:
 #   - Original base checkpoint only (no LoRA / merged model)
 #   - Official tokenizer chat template
+#   - Four fixed manually constructed demonstrations: Generation,
+#     Generation with calendar context, Completion, and Normalization
+#   - Demonstrations are independent of both evaluation test sets
 #   - One example at a time (batch_size=1), no padding, no truncation
-#   - Greedy decoding, matching the final SFT-prompt evaluation so that
-#     prompt formatting is the main experimental difference
+#   - Greedy decoding, matching the final SFT-prompt evaluation
 #   - Same ROUGE, BERTScore, normalized Exact Match, structured
 #     consistency, and output parsing used by evaluate_model.py
 #
@@ -64,7 +66,7 @@ BASE_MODEL_LABEL = get_base_model_label()
 
 MODEL_SPECS = {
     "base_native_chat": {
-        "label": f"{BASE_MODEL_LABEL}_Native-Chat",
+        "label": f"{BASE_MODEL_LABEL}_Few-Shot-Native-Chat",
         "path": MODEL_NAME,
     },
 }
@@ -86,6 +88,101 @@ TESTSET_SPECS = {
 
 RESULTS_DIR = PROJECT_ROOT / "evaluation" / "results_base_native_chat"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
+
+
+# ============================================================
+# FIXED FEW-SHOT DEMONSTRATIONS
+# ============================================================
+
+# These demonstrations were manually constructed for this evaluation.
+# They are not taken from either test set and are kept identical for
+# evaluation on GPTPlus and Claude data.
+
+FEW_SHOT_MESSAGES = [
+    {
+        "role": "user",
+        "content": (
+            "Generate exactly two concise and natural bank-transfer descriptions "
+            "using only the information provided.\n"
+            "Return two alternative descriptions without adding unsupported information.\n"
+            "Category: RENT\n"
+            "Beneficiary: Northfield Property Services\n"
+            "Amount: 850 EUR\n"
+            "Reference period: September 2026"
+        ),
+    },
+    {
+        "role": "assistant",
+        "content": (
+            "1. September 2026 rent payment\n"
+            "2. Rent for September 2026"
+        ),
+    },
+    {
+        "role": "user",
+        "content": (
+            "Generate exactly two concise and natural bank-transfer descriptions "
+            "using only the information provided.\n"
+            "Return two alternative descriptions without adding unsupported information.\n"
+            "Category: COURSE\n"
+            "Beneficiary: Westbridge Training Centre\n"
+            "Amount: 320 EUR\n"
+            "Reference period: October 2026\n"
+            "Calendar context:\n"
+            "- Event: Data analysis workshop\n"
+            "- Date: 2026-10-18\n"
+            "- Event category: Education"
+        ),
+    },
+    {
+        "role": "assistant",
+        "content": (
+            "1. Data analysis workshop fee\n"
+            "2. October 2026 course payment"
+        ),
+    },
+    {
+        "role": "user",
+        "content": (
+            "Complete the following partially written bank-transfer description.\n"
+            "Generate exactly two concise and natural completed alternatives "
+            "using only the information provided.\n"
+            "Category: INTERNET\n"
+            "Beneficiary: Brightline Broadband\n"
+            "Amount: 49.90 EUR\n"
+            "Reference period: August 2026\n"
+            "Partial description: Internet bill for"
+        ),
+    },
+    {
+        "role": "assistant",
+        "content": (
+            "1. Internet bill for August 2026\n"
+            "2. August 2026 broadband payment"
+        ),
+    },
+    {
+        "role": "user",
+        "content": (
+            "Normalize the following bank-transfer description by making it clear, "
+            "concise and natural.\n"
+            "Generate exactly two alternative normalized descriptions while preserving "
+            "the original meaning and without adding unsupported information.\n"
+            "Category: ELECTRICITY\n"
+            "Beneficiary: Greenway Energy\n"
+            "Amount: 76.40 EUR\n"
+            "Reference period: July 2026\n"
+            "Original description: electricity   bill july 2026 payment"
+        ),
+    },
+    {
+        "role": "assistant",
+        "content": (
+            "1. July 2026 electricity bill\n"
+            "2. Electricity payment for July 2026"
+        ),
+    },
+]
 
 
 # ============================================================
@@ -772,8 +869,9 @@ def generate_predictions(
         SFT-prompt evaluation:
             raw prompt + "\\n\\n"
 
-        Native-chat baseline:
-            [{"role": "user", "content": prompt}]
+        Few-shot native-chat baseline:
+            fixed user/assistant demonstrations
+            + [{"role": "user", "content": prompt}]
             -> tokenizer.apply_chat_template(
                    add_generation_prompt=True,
                    tokenize=True,
@@ -799,7 +897,13 @@ def generate_predictions(
 
     for index, prompt in enumerate(prompts, start=1):
         user_prompt = prompt.rstrip("\r\n")
-        messages = [{"role": "user", "content": user_prompt}]
+
+        # Append the current test prompt after the same fixed few-shot
+        # demonstrations for every evaluated example.
+        messages = [
+            *FEW_SHOT_MESSAGES,
+            {"role": "user", "content": user_prompt},
+        ]
 
         encoded = tokenizer.apply_chat_template(
             messages,
@@ -2107,7 +2211,7 @@ def main():
                     "label": value["label"],
                     "path": str(value["path"]),
                     "checkpoint_type": "original_post_trained_checkpoint",
-                    "prompt_interface": "native_chat_template",
+                    "prompt_interface": "few_shot_native_chat_template",
                 }
                 for key, value in MODEL_SPECS.items()
             },
@@ -2132,9 +2236,9 @@ def main():
                 "batch_size": args.batch_size,
                 "padding": False,
                 "truncation": False,
-                "prompt_interface": "native_chat_template",
+                "prompt_interface": "few_shot_native_chat_template",
                 "chat_template_method": "tokenizer.apply_chat_template",
-                "messages": '[{"role": "user", "content": prompt.rstrip("\\r\\n")}]',
+                "messages": "four fixed user/assistant demonstrations followed by the current test prompt",
                 "add_generation_prompt": True,
                 "single_example_generation": True,
                 "audit_note": (
@@ -2144,8 +2248,9 @@ def main():
                 ),
                 "comparison_note": (
                     "Greedy decoding is intentionally kept identical to the "
-                    "SFT-prompt evaluation so that prompt formatting is the "
-                    "primary experimental difference."
+                    "SFT-prompt evaluation. The base model receives four fixed "
+                    "few-shot demonstrations to provide explicit examples of the "
+                    "task and expected two-alternative output format."
                 ),
                 "seed": SEED,
             },
