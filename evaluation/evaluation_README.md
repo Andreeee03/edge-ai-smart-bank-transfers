@@ -31,11 +31,11 @@ evaluate_base_native_chat.py
 results_base_native_chat/
 ```
 
-This stage evaluates the original `LFM2-700M` base model before task-specific fine-tuning.
+This stage evaluates the original `LFM2-700M` base model before task-specific fine-tuning using its native Hugging Face chat template and a fixed few-shot prompting configuration.
 
-The model is evaluated on the same bank-transfer description tasks later used for the fine-tuned models, providing a baseline for measuring the effect of supervised fine-tuning.
+Four manually constructed demonstrations are provided before each test prompt: Generation without calendar context, Generation with calendar context, Completion, and Normalization. The demonstrations are independent of both evaluation test sets and remain identical across the GPTPlus and Claude evaluations. Their purpose is to provide the base model with explicit examples of the supported tasks and of the expected two-alternative output format without modifying the model weights.
 
-The result directory contains evaluation metadata, aggregate and per-activity metrics, qualitative review cases, and model predictions on the GPTPlus and Claude test sets.
+The few-shot baseline is evaluated on the same GPTPlus and Claude test sets used for the fine-tuned models. Inference uses greedy decoding, batch size 1, no padding and no truncation, consistently with the final evaluation protocol. The result directory contains evaluation metadata, aggregate and per-activity metrics, qualitative review cases, and model predictions for both test sets.
 
 ---
 
