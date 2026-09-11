@@ -164,14 +164,14 @@ A pre-built Android APK is available through **GitHub Releases**:
 Download the latest application release:
 
 ```text
-EdgeAI-SmartBankTransfers-v1.0.0.apk
+EdgeAI-SmartBankTransfers-v1.0.1.apk
 ```
 
 ### Installation Steps
 
 1. Open the repository **Releases** page.
 2. Open the latest application release, currently `v1.0.0`.
-3. Download `EdgeAI-SmartBankTransfers-v1.0.0.apk`.
+3. Download `EdgeAI-SmartBankTransfers-v1.0.1.apk`.
 4. Open the downloaded APK on the Android device.
 5. If Android blocks the installation, allow installation from the browser, file manager, or application used to open the APK.
 6. Complete the installation and launch the application.
@@ -231,7 +231,7 @@ The current deployment flow is:
 ```text
 GitHub application release
         │
-        └── EdgeAI-SmartBankTransfers-v1.0.0.apk
+        └── EdgeAI-SmartBankTransfers-v1.0.1.apk
 
 GitHub model release
         │
@@ -362,8 +362,8 @@ Current public artifacts are distributed through GitHub Releases.
 ### Application
 
 ```text
-Tag: v1.0.0
-Asset: EdgeAI-SmartBankTransfers-v1.0.0.apk
+Tag: v1.0.1
+Asset: EdgeAI-SmartBankTransfers-v1.0.1.apk
 ```
 
 ### Model
