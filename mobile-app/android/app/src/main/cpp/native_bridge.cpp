@@ -1,8 +1,9 @@
-﻿#include <jni.h>
+#include <jni.h>
 #include <string>
 #include <mutex>
 #include <vector>
 #include <sstream>
+#include <chrono>
 #include <android/log.h>
 
 #include "llama.h"
@@ -700,7 +701,10 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
         );
     }
 
-    // Ogni nuova richiesta parte con KV cache pulita.
+    using Clock = std::chrono::steady_clock;
+
+    const auto total_start = Clock::now();
+
     llama_memory_t memory =
         llama_get_memory(g_ctx);
 
@@ -741,6 +745,8 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
             n_prompt_tokens
         );
 
+    const auto prompt_decode_start = Clock::now();
+
     const int32_t prompt_decode_result =
         llama_decode(
             g_ctx,
@@ -748,7 +754,6 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
         );
 
     if (prompt_decode_result != 0) {
-
         std::ostringstream error;
 
         error
@@ -759,6 +764,10 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
             error.str().c_str()
         );
     }
+
+    llama_synchronize(g_ctx);
+
+    const auto prompt_decode_end = Clock::now();
 
     llama_sampler * sampler =
         llama_sampler_init_greedy();
@@ -781,6 +790,11 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
 
     int32_t generated_tokens = 0;
     bool reached_eog = false;
+
+    bool first_token_recorded = false;
+    double ttft_ms = -1.0;
+
+    const auto generation_start = Clock::now();
 
     for (
         int32_t i = 0;
@@ -805,6 +819,18 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
             break;
         }
 
+        if (!first_token_recorded) {
+            const auto first_token_time =
+                Clock::now();
+
+            ttft_ms =
+                std::chrono::duration<double, std::milli>(
+                    first_token_time - total_start
+                ).count();
+
+            first_token_recorded = true;
+        }
+
         std::string piece;
 
         if (
@@ -822,7 +848,6 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
         }
 
         output += piece;
-
         generated_tokens++;
 
         llama_token next_token = token;
@@ -840,7 +865,6 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
             );
 
         if (decode_result != 0) {
-
             llama_sampler_free(sampler);
 
             std::ostringstream error;
@@ -855,7 +879,55 @@ Java_com_example_edge_1ai_1smart_1bank_1transfers_MainActivity_nativeGenerate(
         }
     }
 
+    llama_synchronize(g_ctx);
+
+    const auto generation_end = Clock::now();
+    const auto total_end = generation_end;
+
     llama_sampler_free(sampler);
+
+    const double prompt_decode_ms =
+        std::chrono::duration<double, std::milli>(
+            prompt_decode_end - prompt_decode_start
+        ).count();
+
+    const double generation_ms =
+        std::chrono::duration<double, std::milli>(
+            generation_end - generation_start
+        ).count();
+
+    const double total_ms =
+        std::chrono::duration<double, std::milli>(
+            total_end - total_start
+        ).count();
+
+    const double throughput_tok_s =
+        generation_ms > 0.0
+            ? static_cast<double>(generated_tokens) /
+                (generation_ms / 1000.0)
+            : 0.0;
+
+    __android_log_print(
+        ANDROID_LOG_INFO,
+        "EdgeAI-Benchmark",
+        "METRICS "
+        "prompt_tokens=%d "
+        "generated_tokens=%d "
+        "ttft_ms=%.3f "
+        "prompt_decode_ms=%.3f "
+        "generation_ms=%.3f "
+        "total_ms=%.3f "
+        "throughput_tok_s=%.3f "
+        "eog=%s",
+        n_prompt_tokens,
+        generated_tokens,
+        ttft_ms,
+        prompt_decode_ms,
+        generation_ms,
+        total_ms,
+        throughput_tok_s,
+        reached_eog ? "yes" : "no"
+    );
 
     std::ostringstream result;
 

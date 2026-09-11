@@ -1,0 +1,21 @@
+﻿{
+    "benchmark_timestamp_pc":  "2026-09-11T09:52:02+02:00",
+    "device_date":  "Fri Sep 11 09:52:09 CEST 2026",
+    "manufacturer":  "samsung",
+    "model":  "SM-G780F",
+    "device_codename":  "r8s",
+    "android_version":  "13",
+    "api_level":  33,
+    "build_fingerprint":  "samsung/r8seea/r8s:13/TP1A.220624.014/G780FXXSOFYJ1:user/release-keys",
+    "primary_abi":  "arm64-v8a",
+    "hardware":  "exynos990",
+    "board":  "exynos990",
+    "soc_manufacturer":  "Samsung",
+    "soc_model":  "Exynos 990",
+    "chip_name":  "exynos990",
+    "total_ram_gib":  5.33,
+    "battery_level_percent":  15,
+    "battery_temperature_c":  33.7,
+    "battery_status_raw":  "2",
+    "battery_plugged_raw":  null
+}

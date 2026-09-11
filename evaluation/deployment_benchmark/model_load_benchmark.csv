@@ -1,0 +1,7 @@
+﻿"condition","measurement","model_load_ms","context_creation_ms"
+"cold_post_reboot","1","2931,458","27,939"
+"warm_process_restart","1","1972,993","20,379"
+"warm_process_restart","2","1992,773","22,611"
+"warm_process_restart","3","2346,526","24,814"
+"warm_process_restart","4","2008,543","30,452"
+"warm_process_restart","5","2005,264","19,853"

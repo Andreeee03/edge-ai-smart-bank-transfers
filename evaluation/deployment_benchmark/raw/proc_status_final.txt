@@ -1,0 +1,53 @@
+Name:	_bank_transfers
+Umask:	0077
+State:	S (sleeping)
+Tgid:	25132
+Ngid:	0
+Pid:	25132
+PPid:	1009
+TracerPid:	0
+Uid:	10404	10404	10404	10404
+Gid:	10404	10404	10404	10404
+FDSize:	256
+Groups:	3003 9997 20404 50404 
+NStgid:	25132
+NSpid:	25132
+NSpgid:	1009
+NSsid:	0
+VmPeak:	19116712 kB
+VmSize:	17441104 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	 1445604 kB
+VmRSS:	 1391588 kB
+RssAnon:	  666040 kB
+RssFile:	  713276 kB
+RssShmem:	   12272 kB
+VmData:	 2679104 kB
+VmStk:	    8192 kB
+VmExe:	      12 kB
+VmLib:	  219896 kB
+VmPTE:	    3988 kB
+VmSwap:	   76972 kB
+CoreDumping:	0
+Threads:	48
+SigQ:	0/18536
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000080201204
+SigIgn:	0000000000001001
+SigCgt:	0000006e400084f8
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	2
+Speculation_Store_Bypass:	thread vulnerable
+Cpus_allowed:	ff
+Cpus_allowed_list:	0-7
+Mems_allowed:	1
+Mems_allowed_list:	0
+voluntary_ctxt_switches:	982
+nonvoluntary_ctxt_switches:	563

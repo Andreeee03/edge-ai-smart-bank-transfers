@@ -1,0 +1,290 @@
+{
+  "benchmark": {
+    "total_runs": 102,
+    "successful_eog_runs": 102,
+    "all_runs_successful": true,
+    "cycles": 17,
+    "prompts_per_cycle": 6
+  },
+  "initialization": {
+    "model_load_ms": 2639.955,
+    "context_creation_ms": 20.756
+  },
+  "overall_metrics": {
+    "ttft_ms": {
+      "mean": 637.256,
+      "median": 632.644,
+      "p95": 783.297,
+      "min": 499.384,
+      "max": 1079.01,
+      "std_dev": 93.491
+    },
+    "prompt_decode_ms": {
+      "mean": 635.353,
+      "median": 631.124,
+      "p95": 777.084,
+      "min": 497.739,
+      "max": 1077.031,
+      "std_dev": 93.263
+    },
+    "generation_ms": {
+      "mean": 433.938,
+      "median": 455.692,
+      "p95": 571.59,
+      "min": 279.113,
+      "max": 584.626,
+      "std_dev": 88.912
+    },
+    "total_ms": {
+      "mean": 1070.969,
+      "median": 1078.295,
+      "p95": 1271.071,
+      "min": 802.814,
+      "max": 1550.166,
+      "std_dev": 140.254
+    },
+    "throughput_tok_s": {
+      "mean": 35.397,
+      "median": 35.233,
+      "p95": 37.214,
+      "min": 31.213,
+      "max": 39.411,
+      "std_dev": 1.046
+    },
+    "prompt_tokens": {
+      "mean": 67.0,
+      "median": 66.5,
+      "p95": 84.0,
+      "min": 54.0,
+      "max": 84.0,
+      "std_dev": 9.319
+    },
+    "generated_tokens": {
+      "mean": 15.333,
+      "median": 16.0,
+      "p95": 20.0,
+      "min": 11.0,
+      "max": 20.0,
+      "std_dev": 3.052
+    }
+  },
+  "per_prompt": {
+    "P1": {
+      "task": "GENERATION",
+      "runs": 17,
+      "ttft_ms": {
+        "mean": 534.024,
+        "median": 527.002,
+        "p95": 579.609,
+        "min": 499.384,
+        "max": 711.079,
+        "std_dev": 47.298
+      },
+      "total_ms": {
+        "mean": 842.6,
+        "median": 835.758,
+        "p95": 886.805,
+        "min": 802.814,
+        "max": 989.86,
+        "std_dev": 42.183
+      },
+      "throughput_tok_s": {
+        "mean": 35.666,
+        "median": 35.588,
+        "p95": 37.686,
+        "min": 33.385,
+        "max": 39.411,
+        "std_dev": 1.332
+      }
+    },
+    "P2": {
+      "task": "GENERATION_CALENDAR",
+      "runs": 17,
+      "ttft_ms": {
+        "mean": 765.18,
+        "median": 774.172,
+        "p95": 799.891,
+        "min": 690.865,
+        "max": 828.028,
+        "std_dev": 31.683
+      },
+      "total_ms": {
+        "mean": 1250.315,
+        "median": 1261.712,
+        "p95": 1293.496,
+        "min": 1135.706,
+        "max": 1333.798,
+        "std_dev": 43.014
+      },
+      "throughput_tok_s": {
+        "mean": 35.082,
+        "median": 35.152,
+        "p95": 36.769,
+        "min": 31.213,
+        "max": 38.183,
+        "std_dev": 1.398
+      }
+    },
+    "P3": {
+      "task": "COMPLETION",
+      "runs": 17,
+      "ttft_ms": {
+        "mean": 623.677,
+        "median": 587.844,
+        "p95": 823.331,
+        "min": 541.981,
+        "max": 1079.01,
+        "std_dev": 125.998
+      },
+      "total_ms": {
+        "mean": 1076.989,
+        "median": 1046.289,
+        "p95": 1297.382,
+        "min": 971.303,
+        "max": 1550.166,
+        "std_dev": 133.685
+      },
+      "throughput_tok_s": {
+        "mean": 35.299,
+        "median": 35.09,
+        "p95": 36.877,
+        "min": 33.687,
+        "max": 37.223,
+        "std_dev": 0.953
+      }
+    },
+    "P4": {
+      "task": "COMPLETION",
+      "runs": 17,
+      "ttft_ms": {
+        "mean": 574.279,
+        "median": 573.647,
+        "p95": 592.228,
+        "min": 545.823,
+        "max": 595.082,
+        "std_dev": 13.185
+      },
+      "total_ms": {
+        "mean": 1140.514,
+        "median": 1146.163,
+        "p95": 1168.945,
+        "min": 1090.98,
+        "max": 1179.536,
+        "std_dev": 22.766
+      },
+      "throughput_tok_s": {
+        "mean": 35.321,
+        "median": 35.105,
+        "p95": 36.503,
+        "min": 34.21,
+        "max": 36.657,
+        "std_dev": 0.68
+      }
+    },
+    "P5": {
+      "task": "NORMALIZATION",
+      "runs": 17,
+      "ttft_ms": {
+        "mean": 653.957,
+        "median": 652.922,
+        "p95": 672.823,
+        "min": 619.505,
+        "max": 675.405,
+        "std_dev": 17.389
+      },
+      "total_ms": {
+        "mean": 1106.437,
+        "median": 1112.714,
+        "p95": 1134.966,
+        "min": 1052.094,
+        "max": 1150.446,
+        "std_dev": 27.925
+      },
+      "throughput_tok_s": {
+        "mean": 35.368,
+        "median": 35.098,
+        "p95": 37.128,
+        "min": 33.423,
+        "max": 37.481,
+        "std_dev": 0.965
+      }
+    },
+    "P6": {
+      "task": "NORMALIZATION",
+      "runs": 17,
+      "ttft_ms": {
+        "mean": 672.417,
+        "median": 670.519,
+        "p95": 722.815,
+        "min": 631.469,
+        "max": 751.651,
+        "std_dev": 29.188
+      },
+      "total_ms": {
+        "mean": 1008.959,
+        "median": 1007.235,
+        "p95": 1063.675,
+        "min": 952.678,
+        "max": 1094.086,
+        "std_dev": 34.48
+      },
+      "throughput_tok_s": {
+        "mean": 35.648,
+        "median": 35.572,
+        "p95": 37.119,
+        "min": 34.56,
+        "max": 37.616,
+        "std_dev": 0.777
+      }
+    }
+  },
+  "thermal_battery": {
+    "samples": 22,
+    "duration_s": 113.746,
+    "battery_temperature_c": {
+      "initial": 33.6,
+      "final": 38.9,
+      "min": 33.6,
+      "max": 38.9
+    },
+    "battery_percent": {
+      "initial": 35.0,
+      "final": 33.0
+    },
+    "thermal_status": {
+      "max": 3,
+      "observed": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  },
+  "memory": {
+    "initial_process_status": {
+      "VmHWM": {
+        "kib": 392968,
+        "mib": 383.758,
+        "gib": 0.375
+      },
+      "VmRSS": {
+        "kib": 392968,
+        "mib": 383.758,
+        "gib": 0.375
+      }
+    },
+    "final_process_status": {
+      "VmHWM": {
+        "kib": 1445604,
+        "mib": 1411.723,
+        "gib": 1.379
+      },
+      "VmRSS": {
+        "kib": 1391588,
+        "mib": 1358.973,
+        "gib": 1.327
+      }
+    }
+  }
+}

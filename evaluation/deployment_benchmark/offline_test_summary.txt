@@ -1,0 +1,23 @@
+﻿Offline benchmark
+=================
+
+Date: 2026-09-11
+
+Test condition:
+- Airplane mode enabled during inference
+- Wi-Fi disabled during inference
+- Cellular data disconnected during inference
+- Wi-Fi re-enabled only after completion for ADB log retrieval
+
+Verification:
+- airplane_mode_on = 1
+- mDataConnectionState = 0
+
+Benchmark:
+- Requested runs: 30
+- Completed runs: 30
+- Errors: 0
+- Start: 12:36:04
+- Complete: 12:36:40
+
+Result: PASS
