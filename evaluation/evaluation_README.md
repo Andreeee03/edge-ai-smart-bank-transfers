@@ -96,13 +96,13 @@ The validation compares model behaviour before and after conversion and quantiza
 
 The result directory contains predictions for all four model representations, reference-based metrics, pairwise similarity metrics, exact-match statistics, structured-output consistency checks, and final summary files.
 
-The validation showed that the F16 GGUF conversion preserved the original fine-tuned behaviour almost exactly. Both Q4_K_M and Q5_K_M substantially reduced the model size, but Q5_K_M remained closer to the original fine-tuned model while preserving the expected two-alternative output structure.
+The validation showed that the F16 GGUF conversion preserved the original fine-tuned behaviour almost exactly. Both Q4_K_M and Q5_K_M substantially reduced the model size. Their reference-based task quality was very similar, while Q5_K_M remained closer to the original fine-tuned checkpoint and preserved the expected two-alternative output structure.
 
-The final deployment artifact is therefore:
+Q5_K_M was therefore provisionally selected for mobile integration. This decision was made before on-device measurements and was not intended to establish Q5_K_M as the optimal mobile trade-off relative to Q4_K_M. Its practical suitability was subsequently evaluated on the target smartphone through the deployment benchmark described below.
 
-```text
-LFM2-700M_Claude-DS_Q5_K_M.gguf
-```
+The deployed artifact used for the mobile benchmark is:
+
+    LFM2-700M_Claude-DS_Q5_K_M.gguf
 
 The quantized model itself is distributed separately through GitHub Releases and is not committed to the normal Git repository.
 
@@ -110,17 +110,48 @@ The quantized model itself is distributed separately through GitHub Releases and
 
 ## 4. On-Device Deployment Benchmark
 
+### Benchmark Entry Point
+
+    ../mobile-app/lib/benchmark_main.dart
+
+### Scripts
+
+    deployment_benchmark/
+    ├── run_final_benchmark.ps1
+    ├── run_model_load_benchmark.ps1
+    ├── analyze_benchmark.py
+    └── analyze_sustained_load.py
+
 ### Results
 
-```text
-deployment_benchmark/
-```
+    deployment_benchmark/
 
-This directory contains the final runtime benchmark performed on the Android target device after the quantized model had been stored locally.
+The final runtime evaluation was performed on a Samsung SM-G780F smartphone with an Exynos 990 SoC, Android 13, and approximately 5.33 GiB of RAM. The Q5_K_M model was stored locally on the device and executed through the native `llama.cpp` integration.
 
-The benchmark evaluates inference latency, throughput, memory usage, inference success rate, and offline operation.
+The main sustained-load benchmark used six fixed prompts repeated over 17 cycles, for a total of 102 inference runs. All 102 runs completed successfully.
 
-The benchmark therefore measures the runtime behaviour of the final on-device inference pipeline and does not include the one-time model-download phase.
+The final measurements were:
+
+- median TTFT: 632.644 ms
+- P95 TTFT: 783.297 ms
+- median total inference latency: 1078.295 ms
+- P95 total inference latency: 1271.071 ms
+- mean generation throughput: 35.397 tokens/s
+- peak resident memory: 1.379 GiB
+- battery temperature: 33.6 °C to 38.9 °C
+- maximum Android thermal status: 3
+
+The sustained-load analysis compared the first three and last three cycles. Mean total inference latency increased by 1.45%, while generation throughput decreased by 3.69%. Mean TTFT changed by only 0.18%. The results therefore show a limited reduction in decoding performance under prolonged execution without inference failures or substantial latency degradation.
+
+Model initialization was evaluated separately. The first model load after a complete device reboot required 2931.458 ms. Five subsequent application-process restarts produced a mean warm-load time of 2065.220 ms and a median of 2005.264 ms, corresponding to a 29.55% reduction relative to the post-reboot measurement.
+
+Because Android filesystem caches were not explicitly cleared, these measurements are described as post-reboot and warm process-start conditions rather than strictly controlled cold- and warm-cache states.
+
+Offline operation was explicitly tested under Airplane mode. The application completed 30 out of 30 inference runs successfully. Android reported `airplane_mode_on = 1` and `mDataConnectionState = 0`. Wi-Fi was disabled during inference and re-enabled only after completion to retrieve the execution logs through ADB.
+
+The deployment benchmark evaluates TTFT, total inference latency, throughput, memory consumption, initialization time, sustained-load thermal behaviour, inference stability, and offline execution. It does not include the one-time model-download phase.
+
+Because Q4_K_M was not benchmarked on-device, these measurements establish the practical suitability of the selected Q5_K_M configuration but do not demonstrate that it represents the optimal mobile trade-off between model size and runtime performance.
 
 ---
 
@@ -164,28 +195,40 @@ This supports the conclusion that the conversion step itself introduces negligib
 
 ## Final Directory Structure
 
-```text
-evaluation/
-├── audit_inference.py
-├── audit_results/
-│
-├── evaluate_base_native_chat.py
-├── results_base_native_chat/
-│
-├── evaluate_model.py
-├── results_sft_prompt_final/
-│
-├── conversion_fidelity_check/
-│
-├── final_quantization_validation/
-│   └── run_final_validation_claude.py
-│
-├── final_quantization_validation_claude/
-│
-├── deployment_benchmark/
-│
-└── README.md
-```
+    evaluation/
+    ├── audit_inference.py
+    ├── audit_results/
+    │
+    ├── evaluate_base_native_chat.py
+    ├── results_base_native_chat/
+    │
+    ├── evaluate_model.py
+    ├── results_sft_prompt_final/
+    │
+    ├── conversion_fidelity_check/
+    │
+    ├── final_quantization_validation/
+    │   └── run_final_validation_claude.py
+    │
+    ├── final_quantization_validation_claude/
+    │
+    ├── deployment_benchmark/
+    │   ├── README.md
+    │   ├── analyze_benchmark.py
+    │   ├── analyze_sustained_load.py
+    │   ├── device_info.json
+    │   ├── initialization.json
+    │   ├── model_load_benchmark.csv
+    │   ├── offline_test_summary.txt
+    │   ├── raw/
+    │   ├── run_final_benchmark.ps1
+    │   ├── run_model_load_benchmark.ps1
+    │   ├── runs.csv
+    │   ├── summary.json
+    │   ├── sustained_load_analysis.json
+    │   └── thermal_battery.csv
+    │
+    └── evaluation_README.md
 
 ---
 
