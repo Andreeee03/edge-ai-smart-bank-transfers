@@ -164,19 +164,19 @@ A pre-built Android APK is available through **GitHub Releases**:
 Download the latest application release:
 
 ```text
-EdgeAI-SmartBankTransfers-v1.0.1.apk
+EdgeAI-SmartBankTransfers-v1.0.2.apk
 ```
 
 ### Installation Steps
 
 1. Open the repository **Releases** page.
-2. Open the latest application release, currently `v1.0.1`.
-3. Download `EdgeAI-SmartBankTransfers-v1.0.1.apk`.
+2. Open the latest application release, currently `v1.0.2`.
+3. Download `EdgeAI-SmartBankTransfers-v1.0.2.apk`.
 4. Open the downloaded APK on the Android device.
 5. If Android blocks the installation, allow installation from the browser, file manager, or application used to open the APK.
 6. Complete the installation and launch the application.
 
-> Android may display a warning because the APK is installed outside the Google Play Store. Only install the APK if it was downloaded from this repository's official Releases page.
+> Because the APK is distributed directly through GitHub rather than the Google Play Store, Android or Google Play Protect may display an installation or security prompt. The application can be scanned with Google Play Protect before installation. Only install APKs downloaded from this repository's official Releases page.
 
 ### First Launch
 
@@ -231,7 +231,7 @@ The current deployment flow is:
 ```text
 GitHub application release
         │
-        └── EdgeAI-SmartBankTransfers-v1.0.1.apk
+        └── EdgeAI-SmartBankTransfers-v1.0.2.apk
 
 GitHub model release
         │
@@ -286,6 +286,13 @@ Build a debug APK:
 ```bash
 flutter build apk --debug
 ```
+### Release Signing
+
+Release builds require a local Android signing configuration.
+
+The release keystore and `android/key.properties` file are intentionally excluded from version control to prevent private signing credentials from being published.
+
+Developers who want to create their own release build must configure their own Android signing key and provide the corresponding local `key.properties` file before running the release build command.
 
 Build a release APK:
 
@@ -362,8 +369,8 @@ Current public artifacts are distributed through GitHub Releases.
 ### Application
 
 ```text
-Tag: v1.0.1
-Asset: EdgeAI-SmartBankTransfers-v1.0.1.apk
+Tag: v1.0.2
+Asset: EdgeAI-SmartBankTransfers-v1.0.2.apk
 ```
 
 ### Model
