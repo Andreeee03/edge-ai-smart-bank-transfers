@@ -170,7 +170,7 @@ EdgeAI-SmartBankTransfers-v1.0.1.apk
 ### Installation Steps
 
 1. Open the repository **Releases** page.
-2. Open the latest application release, currently `v1.0.0`.
+2. Open the latest application release, currently `v1.0.1`.
 3. Download `EdgeAI-SmartBankTransfers-v1.0.1.apk`.
 4. Open the downloaded APK on the Android device.
 5. If Android blocks the installation, allow installation from the browser, file manager, or application used to open the APK.
